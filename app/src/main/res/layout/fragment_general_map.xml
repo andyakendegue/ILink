@@ -1,0 +1,56 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent"
+    android:layout_height="match_parent" tools:context="com.ilink.GeneralMapFragment" android:id="@+id/maplayout2">
+
+
+    <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/genralMap"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        class="com.google.android.gms.maps.SupportMapFragment" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="false"
+        tools:ignore="RtlCompat"
+        android:layout_alignParentBottom="true"
+        android:padding="26dp"
+        android:gravity="center">
+
+
+
+        <ToggleButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Route"
+            android:id="@+id/sendReseau2"
+            android:textColor="#fff"
+            android:background="@drawable/second_button"
+            android:textOff="Tout le réseau"
+            android:textOn="Mon réseau " />
+
+    </LinearLayout>
+    <ImageButton
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:id="@+id/imageBtnRoute2"
+        android:src="@drawable/ic_directions"
+        android:layout_alignWithParentIfMissing="false"
+        android:layout_marginLeft="20dp"
+        android:layout_marginTop="20dp" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Trouvez votre chemin"
+        android:id="@+id/sendRoute2"
+        android:textColor="#fff"
+        android:background="@drawable/second_button"
+        android:layout_marginLeft="5dp"
+        android:layout_marginTop="10dp"
+        android:textSize="11sp"
+        android:layout_toRightOf="@+id/imageBtnRoute2" />
+
+</RelativeLayout>
