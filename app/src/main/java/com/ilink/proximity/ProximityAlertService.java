@@ -1,207 +1,118 @@
 package com.ilink.proximity;
 
-import android.Manifest;
 import android.app.Service;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.widget.Toast;
+import com.google.android.gms.cast.TextTrackStyle;
+import com.ilink.RegisterSimpleActivity;
 
 public class ProximityAlertService extends Service implements LocationListener {
-
     public static final String LATITUDE_INTENT_KEY = "LATITUDE_INTENT_KEY";
     public static final String LONGITUDE_INTENT_KEY = "LONGITUDE_INTENT_KEY";
     public static final String RADIUS_INTENT_KEY = "RADIUS_INTENT_KEY";
     private static final String TAG = "ProximityAlertService";
-
+    private boolean inProximity;
     private double latitude;
+    private LocationManager locationManager;
     private double longitude;
     private float radius;
-    private LocationManager locationManager;
-    private boolean inProximity;
 
-    @Override
     public void onCreate() {
         super.onCreate();
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        this.locationManager = (LocationManager) getSystemService("location");
     }
 
-    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
+        boolean z = false;
         Location bestLocation = null;
-
-        latitude = intent.getDoubleExtra(LATITUDE_INTENT_KEY, Double.MIN_VALUE);
-        longitude = intent.getDoubleExtra(LONGITUDE_INTENT_KEY,
-                Double.MIN_VALUE);
-        radius = intent.getFloatExtra(RADIUS_INTENT_KEY, Float.MIN_VALUE);
-
-        for (String provider : locationManager.getProviders(false)) {
-            Location location = locationManager.getLastKnownLocation(provider);
-
+        this.latitude = intent.getDoubleExtra(LATITUDE_INTENT_KEY, Double.MIN_VALUE);
+        this.longitude = intent.getDoubleExtra(LONGITUDE_INTENT_KEY, Double.MIN_VALUE);
+        this.radius = intent.getFloatExtra(RADIUS_INTENT_KEY, Float.MIN_VALUE);
+        for (String provider : this.locationManager.getProviders(false)) {
+            Location location = this.locationManager.getLastKnownLocation(provider);
             if (bestLocation == null) {
                 bestLocation = location;
-            } else {
-                // getAccuracy() describes the deviation in meters. So, the
-                // smaller the number, the better the accuracy.
-                if (location.getAccuracy() < bestLocation.getAccuracy()) {
-                    bestLocation = location;
-                }
+            } else if (location.getAccuracy() < bestLocation.getAccuracy()) {
+                bestLocation = location;
             }
         }
-
         if (bestLocation != null) {
-            inProximity = getDistance(bestLocation) <= radius;
+            if (getDistance(bestLocation) <= this.radius) {
+                z = true;
+            }
+            this.inProximity = z;
         }
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-        } else {
-            locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, 0, 0, this);
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            this.locationManager.requestLocationUpdates(RegisterSimpleActivity.KEY_NETWORK, 0, 0.0f, this);
         }
-
-
-        // meaning that the service should be moved back into the
-        // started state (as if onStartCommand() had been called), but do not
-        // re-deliver
-        // the Intent to onStartCommand()
-        return START_STICKY;
+        return 1;
     }
 
-    @Override
     public void onLocationChanged(Location location) {
-        // TODO Auto-generated method stub
         float distance = getDistance(location);
-        if (distance <= radius && !inProximity) {
-            inProximity = true;
+        Intent intent;
+        if (distance <= this.radius && !this.inProximity) {
+            this.inProximity = true;
             Log.i(TAG, "Entering Proximity");
-            //Toast.makeText(getBaseContext(), "Entering Proximity by service",
-            //Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(
-                    ProximityPendingIntentFactory.PROX_ALERT_INTENT);
-            intent.putExtra(LocationManager.KEY_PROXIMITY_ENTERING, true);
+            intent = new Intent(ProximityPendingIntentFactory.PROX_ALERT_INTENT);
+            intent.putExtra("entering", true);
             sendBroadcast(intent);
-
-        } else if (distance > radius && inProximity) {
-            inProximity = false;
-            Log.i(TAG, "Exiting Proximity");
-            //Toast.makeText(getBaseContext(), "Exiting Proximity",
-            //Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(
-                    ProximityPendingIntentFactory.PROX_ALERT_INTENT);
-            intent.putExtra(LocationManager.KEY_PROXIMITY_ENTERING, false);
-            sendBroadcast(intent);
-        } else {
-
-            // roaming state - if distance > radius && !inProximity or if distance < radius && inProximity
-
-            float distanceFromRadius = Math.abs(distance - radius);
-
-            // Calculate the distance to the edge of the user-defined radius
-            // around the target location
-            float locationEvaluationDistance = (distanceFromRadius - location
-                    .getAccuracy()) / 2;
-
-            Toast.makeText(
-                    getBaseContext(),
-                    "roaming state and make sure signal correct!" + " , (distanceFromRadius):"
-                            + distanceFromRadius
-                            + " (locationEvaluationDistance):"
-                            + locationEvaluationDistance, Toast.LENGTH_LONG)
-                    .show();
-
-            locationManager.removeUpdates(this);
-            float updateDistance = Math.max(1, locationEvaluationDistance);
-
-            Toast.makeText(getBaseContext(), "updateDistance: " + updateDistance,
-                    Toast.LENGTH_LONG).show();
-
+        } else if (distance <= this.radius || !this.inProximity) {
             String provider;
-            if (distanceFromRadius <= location.getAccuracy()
-                    || LocationManager.GPS_PROVIDER.equals(location
-                    .getProvider())) {
-                provider = LocationManager.GPS_PROVIDER;
+            float distanceFromRadius = Math.abs(distance - this.radius);
+            float locationEvaluationDistance = (distanceFromRadius - location.getAccuracy()) / 2.0f;
+            Toast.makeText(getBaseContext(), "roaming state and make sure signal correct! , (distanceFromRadius):" + distanceFromRadius + " (locationEvaluationDistance):" + locationEvaluationDistance, 1).show();
+            this.locationManager.removeUpdates(this);
+            float updateDistance = Math.max(TextTrackStyle.DEFAULT_FONT_SCALE, locationEvaluationDistance);
+            Toast.makeText(getBaseContext(), "updateDistance: " + updateDistance, 1).show();
+            if (distanceFromRadius <= location.getAccuracy() || "gps".equals(location.getProvider())) {
+                provider = "gps";
             } else {
-                provider = LocationManager.NETWORK_PROVIDER;
+                provider = RegisterSimpleActivity.KEY_NETWORK;
             }
-            //LocationManager.requestLocationUpdates(String provider, long minTime, float minDistance,
-            //LocationListener listener)
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                return;
-            } else {
-                locationManager.requestLocationUpdates(provider, 0, updateDistance,
-                        this);
+            if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+                this.locationManager.requestLocationUpdates(provider, 0, updateDistance, this);
             }
-
+        } else {
+            this.inProximity = false;
+            Log.i(TAG, "Exiting Proximity");
+            intent = new Intent(ProximityPendingIntentFactory.PROX_ALERT_INTENT);
+            intent.putExtra("entering", false);
+            sendBroadcast(intent);
         }
-
     }
 
-    @Override
     public void onDestroy() {
         super.onDestroy();
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        } else {
-            locationManager.removeUpdates(this);
-            Toast.makeText(getBaseContext(), "Stoping the service!",
-                    Toast.LENGTH_LONG).show();
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            this.locationManager.removeUpdates(this);
+            Toast.makeText(getBaseContext(), "Stoping the service!", 1).show();
         }
-
     }
 
-    @Override
     public void onProviderDisabled(String provider) {
-        // TODO Auto-generated method stub
-
     }
 
-    @Override
     public void onProviderEnabled(String provider) {
-        // TODO Auto-generated method stub
-
     }
 
-    @Override
     public void onStatusChanged(String provider, int status, Bundle extras) {
-        // TODO Auto-generated method stub
-
     }
 
-    @Override
     public IBinder onBind(Intent arg0) {
-        // TODO Auto-generated method stub
         return null;
     }
 
     private float getDistance(Location location) {
         float[] results = new float[1];
-
-        Location.distanceBetween(latitude, longitude, location.getLatitude(),
-                location.getLongitude(), results);
-
+        Location.distanceBetween(this.latitude, this.longitude, location.getLatitude(), location.getLongitude(), results);
         return results[0];
     }
-
 }

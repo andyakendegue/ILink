@@ -1,58 +1,56 @@
 package com.ilink.app;
 
-/**
- * Created by capp on 10/11/15.
- */
-
 import android.support.multidex.MultiDexApplication;
 import android.text.TextUtils;
-
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.ImageLoader;
 import com.android.volley.toolbox.Volley;
 import com.ilink.util.LruBitmapCache;
 
-
 public class AppController extends MultiDexApplication {
-
-    public static final String TAG = AppController.class.getSimpleName();
-
-    private RequestQueue mRequestQueue;
-    private ImageLoader mImageLoader;
-
+    public static final String TAG;
     private static AppController mInstance;
+    private ImageLoader mImageLoader;
+    private RequestQueue mRequestQueue;
 
-    @Override
+    static {
+        TAG = AppController.class.getSimpleName();
+    }
+
     public void onCreate() {
         super.onCreate();
         mInstance = this;
     }
 
     public static synchronized AppController getInstance() {
-        return mInstance;
+        AppController appController;
+        synchronized (AppController.class) {
+            appController = mInstance;
+        }
+        return appController;
     }
 
     public RequestQueue getRequestQueue() {
-        if (mRequestQueue == null) {
-            mRequestQueue = Volley.newRequestQueue(getApplicationContext());
+        if (this.mRequestQueue == null) {
+            this.mRequestQueue = Volley.newRequestQueue(getApplicationContext());
         }
-
-        return mRequestQueue;
+        return this.mRequestQueue;
     }
 
     public ImageLoader getImageLoader() {
         getRequestQueue();
-        if (mImageLoader == null) {
-            mImageLoader = new ImageLoader(this.mRequestQueue,
-                    new LruBitmapCache());
+        if (this.mImageLoader == null) {
+            this.mImageLoader = new ImageLoader(this.mRequestQueue, new LruBitmapCache());
         }
         return this.mImageLoader;
     }
 
     public <T> void addToRequestQueue(Request<T> req, String tag) {
-        // set the default tag if tag is empty
-        req.setTag(TextUtils.isEmpty(tag) ? TAG : tag);
+        if (TextUtils.isEmpty(tag)) {
+            tag = TAG;
+        }
+        req.setTag(tag);
         getRequestQueue().add(req);
     }
 
@@ -62,8 +60,8 @@ public class AppController extends MultiDexApplication {
     }
 
     public void cancelPendingRequests(Object tag) {
-        if (mRequestQueue != null) {
-            mRequestQueue.cancelAll(tag);
+        if (this.mRequestQueue != null) {
+            this.mRequestQueue.cancelAll(tag);
         }
     }
 }

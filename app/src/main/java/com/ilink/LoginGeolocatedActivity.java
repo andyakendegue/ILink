@@ -1,216 +1,169 @@
 package com.ilink;
 
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.AppCompatButton;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.android.volley.AuthFailureError;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
+import com.android.volley.Response.ErrorListener;
+import com.android.volley.Response.Listener;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-
 import java.util.HashMap;
 import java.util.Map;
 
-public class LoginGeolocatedActivity extends AppCompatActivity implements View.OnClickListener {
-
-
-    //Defining views
-    private EditText editTextPhone;
-    private EditText editTextPassword;
+public class LoginGeolocatedActivity extends AppCompatActivity implements OnClickListener {
+    private AppCompatButton btnForgotPassword;
     private AppCompatButton buttonLogin;
     private AppCompatButton buttonRegister;
-    private AppCompatButton btnForgotPassword;
+    private EditText editTextPassword;
+    private EditText editTextPhone;
     private TextView linkSignup;
+    private boolean loggedIn;
 
-    //boolean variable to check user is logged in or not
-    //initially it is false
-    private boolean loggedIn = false;
+    /* renamed from: com.ilink.LoginGeolocatedActivity.1 */
+    class C15361 implements OnClickListener {
+        C15361() {
+        }
 
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.hide();
-
-        setContentView(R.layout.activity_login);
-
-        //Initializing views
-        editTextPhone = (EditText) findViewById(R.id.editTextPhone);
-        editTextPassword = (EditText) findViewById(R.id.editTextPassword);
-        linkSignup = (TextView) findViewById(R.id.linkSignup);
-
-        buttonLogin = (AppCompatButton) findViewById(R.id.buttonLogin);
-        btnForgotPassword = (AppCompatButton) findViewById(R.id.btnForgotPassword);
-
-        //Adding click listener
-        buttonLogin.setOnClickListener(this);
-
-        buttonRegister = (AppCompatButton) findViewById(R.id.buttonRegister);
-
-                buttonRegister.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Getting values from edit texts
-                final String email = editTextPhone.getText().toString().trim();
-                final String password = editTextPassword.getText().toString().trim();
-                Intent intent = new Intent(LoginGeolocatedActivity.this, RegisterSimpleActivity.class);
-                intent.putExtra("email", email);
-                intent.putExtra("password",password);
-                //Intent intent = new Intent(LoginActivity.this, HomeActivity.class);
-                startActivity(intent);
-                finish();
-
-            }
-        });
-
-        btnForgotPassword.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(LoginGeolocatedActivity.this, ForgottenPasswordGeolocatedActivity.class);
-                startActivity(i);
-            }
-        });
-        linkSignup.setVisibility(View.INVISIBLE);
-        buttonRegister.setVisibility(View.INVISIBLE);
-
-
-
-
-    }
-
-
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        //In onresume fetching value from sharedpreference
-        SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME,Context.MODE_PRIVATE);
-
-        //Fetching the boolean value form sharedpreferences
-        loggedIn = sharedPreferences.getBoolean(Config.LOGGEDIN_SHARED_PREF, false);
-        String category = sharedPreferences.getString(Config.CATEGORY_SHARED_PREF, "Aucun resultat");
-
-        //If we will get true
-        if(loggedIn){
-            //We will start the Profile Activity
-            //Intent intent = new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class);
-            //startActivity(intent);
-            if (category.equalsIgnoreCase("utilisateur")) {
-
-                Intent i = new Intent(LoginGeolocatedActivity.this, TamponActivity.class);
-                //Intent i = new Intent(TamponActivity.this, HyperviseurHomeActivity.class);
-
-                startActivity(i);
-                finish();
-
-            } else if (category.equalsIgnoreCase("super")) {
-                Intent i = new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class);
-                startActivity(i);
-                finish();
-
-            } else if (category.equalsIgnoreCase("hyper")) {
-                Intent i = new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class);
-                startActivity(i);
-                finish();
-
-            } else if (category.equalsIgnoreCase("geolocated")) {
-                Intent i = new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class);
-                startActivity(i);
-                finish();
-
-            } else {
-                Toast.makeText(LoginGeolocatedActivity.this, "Impossible de vous connecter. Veuillez redemarrer l'application", Toast.LENGTH_LONG).show();
-            }
+        public void onClick(View view) {
+            String email = LoginGeolocatedActivity.this.editTextPhone.getText().toString().trim();
+            String password = LoginGeolocatedActivity.this.editTextPassword.getText().toString().trim();
+            Intent intent = new Intent(LoginGeolocatedActivity.this, RegisterSimpleActivity.class);
+            intent.putExtra(TamponGeolocatedActivity.KEY_EMAIL, email);
+            intent.putExtra(RegisterSimpleActivity.KEY_PASSWORD, password);
+            LoginGeolocatedActivity.this.startActivity(intent);
+            LoginGeolocatedActivity.this.finish();
         }
     }
 
-    private void login(){
-        //Getting values from edit texts
-        final String phone = editTextPhone.getText().toString().trim();
-        final String password = editTextPassword.getText().toString().trim();
-        final String tag = "login_geolocated";
+    /* renamed from: com.ilink.LoginGeolocatedActivity.2 */
+    class C15372 implements OnClickListener {
+        C15372() {
+        }
 
-        //Creating a string request
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, Config.LOGIN_URL,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        //If we are getting success from server
-                        //if(response.equalsIgnoreCase(Config.LOGIN_SUCCESS)){
-                        if(response.equalsIgnoreCase(Config.LOGIN_SUCCESS)){
-
-                            //Creating a shared preference
-                            SharedPreferences sharedPreferences = LoginGeolocatedActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-
-                            //Creating editor to store values to shared preferences
-                            SharedPreferences.Editor editor = sharedPreferences.edit();
-
-                            //Adding values to editor
-                            editor.putBoolean(Config.LOGGEDIN_SHARED_PREF, true);
-                            editor.putString(Config.PHONE_SHARED_PREF, phone);
-
-                            //Saving values to editor
-                            editor.commit();
-
-                            //Starting profile activity
-                            //Intent intent = new Intent(LoginActivity.this, HomeActivity.class);
-                            Intent intent = new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class);
-                            startActivity(intent);
-                            finish();
-                        }else{
-                            //If the server response is not success
-                            //Displaying an error message on toast
-                            Toast.makeText(LoginGeolocatedActivity.this, "Email ou mot de passe invalide"+response, Toast.LENGTH_LONG).show();
-                        }
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Toast.makeText(LoginGeolocatedActivity.this, "Probleme de connexion au serveur", Toast.LENGTH_LONG).show();
-                    }
-                }){
-            @Override
-            protected Map<String, String> getParams() throws AuthFailureError {
-                Map<String,String> params = new HashMap<>();
-                //Adding parameters to request
-                params.put(Config.KEY_PHONE, phone);
-                params.put(Config.KEY_PASSWORD, password);
-                params.put(Config.KEY_TAG, tag);
-
-                //returning parameter
-                return params;
-            }
-        };
-
-        //Adding the string request to the queue
-        RequestQueue requestQueue = Volley.newRequestQueue(this);
-        requestQueue.add(stringRequest);
+        public void onClick(View v) {
+            LoginGeolocatedActivity.this.startActivity(new Intent(LoginGeolocatedActivity.this, ForgottenPasswordGeolocatedActivity.class));
+        }
     }
 
-    @Override
+    /* renamed from: com.ilink.LoginGeolocatedActivity.3 */
+    class C15383 implements Listener<String> {
+        final /* synthetic */ String val$phone;
+
+        C15383(String str) {
+            this.val$phone = str;
+        }
+
+        public void onResponse(String response) {
+            if (response.equalsIgnoreCase(Config.LOGIN_SUCCESS)) {
+                Editor editor = LoginGeolocatedActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, 0).edit();
+                editor.putBoolean(Config.LOGGEDIN_SHARED_PREF, true);
+                editor.putString(TamponGeolocatedActivity.KEY_PHONE, this.val$phone);
+                editor.commit();
+                LoginGeolocatedActivity.this.startActivity(new Intent(LoginGeolocatedActivity.this, TamponGeolocatedActivity.class));
+                LoginGeolocatedActivity.this.finish();
+                return;
+            }
+            Toast.makeText(LoginGeolocatedActivity.this, "Email ou mot de passe invalide" + response, 1).show();
+        }
+    }
+
+    /* renamed from: com.ilink.LoginGeolocatedActivity.4 */
+    class C15394 implements ErrorListener {
+        C15394() {
+        }
+
+        public void onErrorResponse(VolleyError error) {
+            Toast.makeText(LoginGeolocatedActivity.this, "Probleme de connexion au serveur", 1).show();
+        }
+    }
+
+    /* renamed from: com.ilink.LoginGeolocatedActivity.5 */
+    class C15405 extends StringRequest {
+        final /* synthetic */ String val$password;
+        final /* synthetic */ String val$phone;
+
+        C15405(int x0, String x1, Listener x2, ErrorListener x3, String str, String str2) {
+            this.val$phone = str;
+            this.val$password = str2;
+            super(x0, x1, x2, x3);
+        }
+
+        protected Map<String, String> getParams() throws AuthFailureError {
+            Map<String, String> params = new HashMap();
+            params.put(TamponGeolocatedActivity.KEY_PHONE, this.val$phone);
+            params.put(RegisterSimpleActivity.KEY_PASSWORD, this.val$password);
+            params.put(TamponGeolocatedActivity.KEY_TAG, "login_geolocated");
+            return params;
+        }
+    }
+
+    public LoginGeolocatedActivity() {
+        this.loggedIn = false;
+    }
+
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getSupportActionBar().hide();
+        setContentView((int) C1558R.layout.activity_login);
+        this.editTextPhone = (EditText) findViewById(C1558R.id.editTextPhone);
+        this.editTextPassword = (EditText) findViewById(C1558R.id.editTextPassword);
+        this.linkSignup = (TextView) findViewById(C1558R.id.linkSignup);
+        this.buttonLogin = (AppCompatButton) findViewById(C1558R.id.buttonLogin);
+        this.btnForgotPassword = (AppCompatButton) findViewById(C1558R.id.btnForgotPassword);
+        this.buttonLogin.setOnClickListener(this);
+        this.buttonRegister = (AppCompatButton) findViewById(C1558R.id.buttonRegister);
+        this.buttonRegister.setOnClickListener(new C15361());
+        this.btnForgotPassword.setOnClickListener(new C15372());
+        this.linkSignup.setVisibility(4);
+        this.buttonRegister.setVisibility(4);
+    }
+
+    protected void onResume() {
+        super.onResume();
+        SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, 0);
+        this.loggedIn = sharedPreferences.getBoolean(Config.LOGGEDIN_SHARED_PREF, false);
+        String category = sharedPreferences.getString(RegisterSimpleActivity.KEY_CATEGORY, "Aucun resultat");
+        if (!this.loggedIn) {
+            return;
+        }
+        if (category.equalsIgnoreCase("utilisateur")) {
+            startActivity(new Intent(this, TamponActivity.class));
+            finish();
+        } else if (category.equalsIgnoreCase("super")) {
+            startActivity(new Intent(this, TamponGeolocatedActivity.class));
+            finish();
+        } else if (category.equalsIgnoreCase("hyper")) {
+            startActivity(new Intent(this, TamponGeolocatedActivity.class));
+            finish();
+        } else if (category.equalsIgnoreCase("geolocated")) {
+            startActivity(new Intent(this, TamponGeolocatedActivity.class));
+            finish();
+        } else {
+            Toast.makeText(this, "Impossible de vous connecter. Veuillez redemarrer l'application", 1).show();
+        }
+    }
+
+    private void login() {
+        String phone = this.editTextPhone.getText().toString().trim();
+        String tag = "login_geolocated";
+        Volley.newRequestQueue(this).add(new C15405(1, Config.LOGIN_URL, new C15383(phone), new C15394(), phone, this.editTextPassword.getText().toString().trim()));
+    }
+
     public void onClick(View v) {
-        //Calling the login function
         login();
     }
 
-    @Override
     public void onBackPressed() {
-
-            super.onBackPressed();
-
+        super.onBackPressed();
     }
 }

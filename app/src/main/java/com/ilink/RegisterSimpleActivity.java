@@ -4,358 +4,264 @@ import android.content.Intent;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
-
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
+import com.android.volley.Response.ErrorListener;
+import com.android.volley.Response.Listener;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.directions.route.BuildConfig;
 import com.google.android.gms.appindexing.Action;
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.api.GoogleApiClient;
-
+import com.google.android.gms.common.api.GoogleApiClient.Builder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RegisterSimpleActivity extends AppCompatActivity implements View.OnClickListener {
-
-    // LISTE PAYS
-    private String e_pays = "Gabon";
-    private Spinner ListPays = null;
-    private String[] paysItem;
-
-    // LISTE RESEAU
-    private String e_reseau;
-    private Spinner ListReseau = null;
-    private String[] reseauItem;
-
-    private static final String REGISTER_URL = "http://ilink-app.com/app/";
-
+public class RegisterSimpleActivity extends AppCompatActivity implements OnClickListener {
+    public static final String KEY_CATEGORY = "category";
+    public static final String KEY_COUNTRY = "country_code";
+    public static final String KEY_EMAIL = "email";
     public static final String KEY_FIRSTNAME = "firstname";
     public static final String KEY_LASTNAME = "lastname";
-    public static final String KEY_PASSWORD = "password";
-    public static final String KEY_EMAIL = "email";
-    public static final String KEY_PHONE = "phone";
-    public static final String KEY_COUNTRY = "country_code";
-    public static final String KEY_NETWORK = "network";
     public static final String KEY_LATITUDE = "latitude";
     public static final String KEY_LONGITUDE = "longitude";
     public static final String KEY_MEMBER_CODE = "member_code";
-    public static final String KEY_CATEGORY = "category";
-    public static final String KEY_VALIDATE = "validate";
+    public static final String KEY_NETWORK = "network";
+    public static final String KEY_PASSWORD = "password";
+    public static final String KEY_PHONE = "phone";
     public static final String KEY_TAG = "tag";
-
-
-    private EditText firstname;
-    private EditText lastname;
+    public static final String KEY_VALIDATE = "validate";
+    private static final String REGISTER_URL = "http://ilink-app.com/app/";
+    private static String mdp;
+    private static String phone;
+    private Spinner ListPays;
+    private Spinner ListReseau;
+    private Button buttonRegister;
+    private GoogleApiClient client;
+    private String e_pays;
+    private String e_reseau;
     private EditText editTextEmail;
     private EditText editTextPassword;
     private EditText editTextPasswordRepeat;
     private EditText editTextPhone;
-
-    private Button buttonRegister;
+    private EditText firstname;
+    private EditText lastname;
+    private String latitude;
     private LocationManager locationManager;
-    private String latitude = "0";
-    private String longitude = "0";
-    /**
-     * ATTENTION: This was auto-generated to implement the App Indexing API.
-     * See https://g.co/AppIndexing/AndroidStudio for more information.
-     */
-    private GoogleApiClient client;
+    private String longitude;
+    private String[] paysItem;
+    private String[] reseauItem;
 
-    private static String phone ;
-    private static String mdp ;
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_register_simple);
-        // get Extras
-        Intent in = getIntent();
-        // Extras a recevoir
-        phone = in.getStringExtra("phone");
-        mdp = in.getStringExtra("password");
-
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.hide();
-
-
-        firstname = (EditText) findViewById(R.id.firstname);
-        lastname = (EditText) findViewById(R.id.lastname);
-        editTextPassword = (EditText) findViewById(R.id.editTextPassword);
-        editTextPassword.setText(mdp);
-        editTextPasswordRepeat = (EditText) findViewById(R.id.editTextPasswordRepeat);
-        editTextPasswordRepeat.setText(mdp);
-        editTextEmail = (EditText) findViewById(R.id.editTextEmail);
-
-        editTextPhone = (EditText) findViewById(R.id.editTextPhone);
-        editTextPhone.setText(phone);
-
-        buttonRegister = (Button) findViewById(R.id.buttonRegister);
-
-
-
-        buttonRegister.setOnClickListener(this);
-
-        // Pays
-
-        ListPays = (Spinner) findViewById(R.id.CountryCode);
-        List<String> listePays = new ArrayList<String>();
-        paysItem = getResources().getStringArray(R.array.country_code);
-        final int paysLength = paysItem.length;
-
-        for (int i = 0 ; i < paysLength ; i++) {
-            listePays.add(paysItem[i]);
-
+    /* renamed from: com.ilink.RegisterSimpleActivity.1 */
+    class C15671 implements OnItemSelectedListener {
+        C15671() {
         }
-        ArrayAdapter<String> paysAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, listePays);
-        //Le layout par défaut est android.R.layout.simple_spinner_dropdown_item
-        paysAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        ListPays.setAdapter(paysAdapter);
-        ListPays.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                e_pays = parent.getItemAtPosition(position).toString();
-                if(e_pays.equals("Burkina-Faso")){
-                    reseauItem = getResources().getStringArray(R.array.network_burkina);
 
-                } else if (e_pays.equals("Cameroun")) {
-                    reseauItem = getResources().getStringArray(R.array.network_cameroun);
-
-                } else if (e_pays.equals("France")) {
-                    reseauItem = getResources().getStringArray(R.array.network_france);
-
-                } else if (e_pays.equals("Gabon")){
-                    reseauItem = getResources().getStringArray(R.array.network_gabon);
-                }
-                List<String> listReseau = new ArrayList<String>();
-                final int reseauLength = reseauItem.length;
-
-                for (int i = 0; i < reseauLength; i++) {
-                    listReseau.add(reseauItem[i]);
-
-                }
-                ArrayAdapter<String> reseauAdapter = new ArrayAdapter<String>(RegisterSimpleActivity.this, android.R.layout.simple_spinner_item, listReseau);
-                //Le layout par défaut est android.R.layout.simple_spinner_dropdown_item
-                reseauAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                ListReseau.setAdapter(reseauAdapter);
+        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            RegisterSimpleActivity.this.e_pays = parent.getItemAtPosition(position).toString();
+            if (RegisterSimpleActivity.this.e_pays.equals("Burkina-Faso")) {
+                RegisterSimpleActivity.this.reseauItem = RegisterSimpleActivity.this.getResources().getStringArray(C1558R.array.network_burkina);
+            } else if (RegisterSimpleActivity.this.e_pays.equals("Cameroun")) {
+                RegisterSimpleActivity.this.reseauItem = RegisterSimpleActivity.this.getResources().getStringArray(C1558R.array.network_cameroun);
+            } else if (RegisterSimpleActivity.this.e_pays.equals("France")) {
+                RegisterSimpleActivity.this.reseauItem = RegisterSimpleActivity.this.getResources().getStringArray(C1558R.array.network_france);
+            } else if (RegisterSimpleActivity.this.e_pays.equals("Gabon")) {
+                RegisterSimpleActivity.this.reseauItem = RegisterSimpleActivity.this.getResources().getStringArray(C1558R.array.network_gabon);
             }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                e_pays = paysItem[0].toString();
+            List<String> listReseau = new ArrayList();
+            for (Object add : RegisterSimpleActivity.this.reseauItem) {
+                listReseau.add(add);
             }
-
-        });
-
-        // Reseau
-
-
-        ListReseau = (Spinner) findViewById(R.id.Network);
-        List<String> listReseau = new ArrayList<String>();
-        reseauItem = getResources().getStringArray(R.array.network_gabon);
-        final int reseauLength = reseauItem.length;
-
-        for (int i = 0; i < reseauLength; i++) {
-            listReseau.add(reseauItem[i]);
-
+            ArrayAdapter<String> reseauAdapter = new ArrayAdapter(RegisterSimpleActivity.this, 17367048, listReseau);
+            reseauAdapter.setDropDownViewResource(17367049);
+            RegisterSimpleActivity.this.ListReseau.setAdapter(reseauAdapter);
         }
-        ArrayAdapter<String> reseauAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, listReseau);
-        //Le layout par défaut est android.R.layout.simple_spinner_dropdown_item
-        reseauAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        ListReseau.setAdapter(reseauAdapter);
-        ListReseau.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                e_reseau = parent.getItemAtPosition(position).toString();
-            }
 
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                e_reseau = reseauItem[0].toString();
-
-            }
-
-        });
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
+        public void onNothingSelected(AdapterView<?> adapterView) {
+            RegisterSimpleActivity.this.e_pays = RegisterSimpleActivity.this.paysItem[0].toString();
+        }
     }
 
+    /* renamed from: com.ilink.RegisterSimpleActivity.2 */
+    class C15682 implements OnItemSelectedListener {
+        C15682() {
+        }
 
-    @Override
+        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            RegisterSimpleActivity.this.e_reseau = parent.getItemAtPosition(position).toString();
+        }
+
+        public void onNothingSelected(AdapterView<?> adapterView) {
+            RegisterSimpleActivity.this.e_reseau = RegisterSimpleActivity.this.reseauItem[0].toString();
+        }
+    }
+
+    /* renamed from: com.ilink.RegisterSimpleActivity.3 */
+    class C15693 implements Listener<String> {
+        C15693() {
+        }
+
+        public void onResponse(String response) {
+            if (response.equalsIgnoreCase(Config.LOGIN_SUCCESS)) {
+                Toast.makeText(RegisterSimpleActivity.this, "Enregistrement reussi! Recuperez le code de validation qui vous a ete envoye, ensuite, reconnectez-vous avec le numero de telephone et le mot de passe specifie lors de votre enregistrement.", 1).show();
+                RegisterSimpleActivity.this.startActivity(new Intent(RegisterSimpleActivity.this, LoginActivity.class));
+                RegisterSimpleActivity.this.finish();
+                return;
+            }
+            Toast.makeText(RegisterSimpleActivity.this, "Probleme lors de l'enregistrement", 1).show();
+        }
+    }
+
+    /* renamed from: com.ilink.RegisterSimpleActivity.4 */
+    class C15704 implements ErrorListener {
+        C15704() {
+        }
+
+        public void onErrorResponse(VolleyError error) {
+            Toast.makeText(RegisterSimpleActivity.this, "Impossible de se connecter au serveur", 1).show();
+        }
+    }
+
+    /* renamed from: com.ilink.RegisterSimpleActivity.5 */
+    class C15715 extends StringRequest {
+        final /* synthetic */ String val$email;
+        final /* synthetic */ String val$nom;
+        final /* synthetic */ String val$password;
+        final /* synthetic */ String val$phone;
+        final /* synthetic */ String val$prenom;
+
+        C15715(int x0, String x1, Listener x2, ErrorListener x3, String str, String str2, String str3, String str4, String str5) {
+            this.val$prenom = str;
+            this.val$nom = str2;
+            this.val$password = str3;
+            this.val$email = str4;
+            this.val$phone = str5;
+            super(x0, x1, x2, x3);
+        }
+
+        protected Map<String, String> getParams() {
+            Map<String, String> params = new HashMap();
+            params.put(RegisterSimpleActivity.KEY_FIRSTNAME, this.val$prenom);
+            params.put(RegisterSimpleActivity.KEY_LASTNAME, this.val$nom);
+            params.put(RegisterSimpleActivity.KEY_PASSWORD, this.val$password);
+            params.put(RegisterSimpleActivity.KEY_EMAIL, this.val$email);
+            params.put(RegisterSimpleActivity.KEY_PHONE, this.val$phone);
+            params.put(RegisterSimpleActivity.KEY_NETWORK, RegisterSimpleActivity.this.e_reseau);
+            params.put(RegisterSimpleActivity.KEY_MEMBER_CODE, "0");
+            params.put(RegisterSimpleActivity.KEY_LATITUDE, RegisterSimpleActivity.this.latitude);
+            params.put(RegisterSimpleActivity.KEY_LONGITUDE, RegisterSimpleActivity.this.longitude);
+            params.put(RegisterSimpleActivity.KEY_COUNTRY, RegisterSimpleActivity.this.e_pays);
+            params.put(RegisterSimpleActivity.KEY_CATEGORY, "utilisateur");
+            params.put(RegisterSimpleActivity.KEY_VALIDATE, "non");
+            params.put(RegisterSimpleActivity.KEY_TAG, "register");
+            return params;
+        }
+    }
+
+    public RegisterSimpleActivity() {
+        this.e_pays = "Gabon";
+        this.ListPays = null;
+        this.ListReseau = null;
+        this.latitude = "0";
+        this.longitude = "0";
+    }
+
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView((int) C1558R.layout.activity_register_simple);
+        Intent in = getIntent();
+        phone = in.getStringExtra(KEY_PHONE);
+        mdp = in.getStringExtra(KEY_PASSWORD);
+        getSupportActionBar().hide();
+        this.firstname = (EditText) findViewById(C1558R.id.firstname);
+        this.lastname = (EditText) findViewById(C1558R.id.lastname);
+        this.editTextPassword = (EditText) findViewById(C1558R.id.editTextPassword);
+        this.editTextPassword.setText(mdp);
+        this.editTextPasswordRepeat = (EditText) findViewById(C1558R.id.editTextPasswordRepeat);
+        this.editTextPasswordRepeat.setText(mdp);
+        this.editTextEmail = (EditText) findViewById(C1558R.id.editTextEmail);
+        this.editTextPhone = (EditText) findViewById(C1558R.id.editTextPhone);
+        this.editTextPhone.setText(phone);
+        this.buttonRegister = (Button) findViewById(C1558R.id.buttonRegister);
+        this.buttonRegister.setOnClickListener(this);
+        this.ListPays = (Spinner) findViewById(C1558R.id.CountryCode);
+        List<String> listePays = new ArrayList();
+        this.paysItem = getResources().getStringArray(C1558R.array.country_code);
+        for (Object add : this.paysItem) {
+            listePays.add(add);
+        }
+        ArrayAdapter<String> paysAdapter = new ArrayAdapter(this, 17367048, listePays);
+        paysAdapter.setDropDownViewResource(17367049);
+        this.ListPays.setAdapter(paysAdapter);
+        this.ListPays.setOnItemSelectedListener(new C15671());
+        this.ListReseau = (Spinner) findViewById(C1558R.id.Network);
+        List<String> listReseau = new ArrayList();
+        this.reseauItem = getResources().getStringArray(C1558R.array.network_gabon);
+        for (Object add2 : this.reseauItem) {
+            listReseau.add(add2);
+        }
+        ArrayAdapter<String> reseauAdapter = new ArrayAdapter(this, 17367048, listReseau);
+        reseauAdapter.setDropDownViewResource(17367049);
+        this.ListReseau.setAdapter(reseauAdapter);
+        this.ListReseau.setOnItemSelectedListener(new C15682());
+        this.client = new Builder(this).addApi(AppIndex.API).build();
+    }
+
     public void onClick(View v) {
-        if (v == buttonRegister) {
+        if (v == this.buttonRegister) {
             registerUser();
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void onResume() {
         super.onResume();
-
-
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void onPause() {
         super.onPause();
-
-
     }
-
-
-
-
-
 
     private void registerUser() {
-        final String prenom = firstname.getText().toString().trim();
-        final String nom = lastname.getText().toString().trim();
-        final String password = editTextPassword.getText().toString().trim();
-        final String email = editTextEmail.getText().toString().trim();
-
-        final String phone = editTextPhone.getText().toString().trim();
-        final String member_code = "0";
-
-        // Test values
-        if ((!lastname.getText().toString().equals("")) && (!editTextPassword.getText().toString().equals("")) && (!firstname.getText().toString().equals("")) && (!editTextPhone.getText().toString().equals("")) && (!editTextEmail.getText().toString().equals(""))) {
-            if (editTextPhone.getText().toString().length() > 4) {
-
-
-                if (editTextPassword.getText().toString().length() == editTextPasswordRepeat.getText().toString().length()) {
-
-                    if (latitude != null && longitude != null) {
-
-
-                        StringRequest stringRequest = new StringRequest(Request.Method.POST, REGISTER_URL,
-                                new Response.Listener<String>() {
-                                    @Override
-                                    public void onResponse(String response) {
-                                        //Toast.makeText(RegisterActivity.this, response, Toast.LENGTH_LONG).show();
-
-                                        if(response.equalsIgnoreCase(Config.LOGIN_SUCCESS)) {
-                                            Toast.makeText(RegisterSimpleActivity.this, "Enregistrement reussi! Recuperez le code de validation qui vous a ete envoye, ensuite, reconnectez-vous avec le numero de telephone et le mot de passe specifie lors de votre enregistrement.", Toast.LENGTH_LONG).show();
-                                            Intent i = new Intent(RegisterSimpleActivity.this, LoginActivity.class);
-                                            startActivity(i);
-
-                                            finish();
-                                        }else{
-                                            //If the server response is not success
-                                            //Displaying an error message on toast
-                                            Toast.makeText(RegisterSimpleActivity.this, "Probleme lors de l'enregistrement", Toast.LENGTH_LONG).show();
-                                        }
-                                    }
-                                },
-                                new Response.ErrorListener() {
-                                    @Override
-                                    public void onErrorResponse(VolleyError error) {
-                                        Toast.makeText(RegisterSimpleActivity.this, "Impossible de se connecter au serveur", Toast.LENGTH_LONG).show();
-                                    }
-                                }) {
-                            @Override
-                            protected Map<String, String> getParams() {
-                                Map<String, String> params = new HashMap<String, String>();
-                                params.put(KEY_FIRSTNAME, prenom);
-                                params.put(KEY_LASTNAME, nom);
-                                params.put(KEY_PASSWORD, password);
-                                params.put(KEY_EMAIL, email);
-                                params.put(KEY_PHONE, phone);
-                                params.put(KEY_NETWORK, e_reseau);
-                                params.put(KEY_MEMBER_CODE, member_code);
-                                params.put(KEY_LATITUDE, latitude);
-                                params.put(KEY_LONGITUDE, longitude);
-                                params.put(KEY_COUNTRY, e_pays);
-                                params.put(KEY_CATEGORY, "utilisateur");
-                                params.put(KEY_VALIDATE, "non");
-                                params.put(KEY_TAG, "register");
-                                return params;
-                            }
-
-
-                        };
-
-                        RequestQueue requestQueue = Volley.newRequestQueue(this);
-                        requestQueue.add(stringRequest);
-
-
-                    } else {
-                        Toast.makeText(RegisterSimpleActivity.this, "Pas encore localise!", Toast.LENGTH_LONG).show();
-                    }
-                } else {
-                    Toast.makeText(getApplicationContext(),
-                            "Les mots de passe entres ne correspondent pas. Essayez de nouveau!", Toast.LENGTH_SHORT).show();
-
-                }
-
-            } else {
-                Toast.makeText(getApplicationContext(),
-                        "Le pseudonyme doit être au minimum de 5 caractères", Toast.LENGTH_SHORT).show();
-            }
+        String prenom = this.firstname.getText().toString().trim();
+        String nom = this.lastname.getText().toString().trim();
+        String password = this.editTextPassword.getText().toString().trim();
+        String email = this.editTextEmail.getText().toString().trim();
+        String phone = this.editTextPhone.getText().toString().trim();
+        String member_code = "0";
+        if (this.lastname.getText().toString().equals(BuildConfig.VERSION_NAME) || this.editTextPassword.getText().toString().equals(BuildConfig.VERSION_NAME) || this.firstname.getText().toString().equals(BuildConfig.VERSION_NAME) || this.editTextPhone.getText().toString().equals(BuildConfig.VERSION_NAME) || this.editTextEmail.getText().toString().equals(BuildConfig.VERSION_NAME)) {
+            Toast.makeText(getApplicationContext(), "Un ou plusieurs champs sont vides", 0).show();
+        } else if (this.editTextPhone.getText().toString().length() <= 4) {
+            Toast.makeText(getApplicationContext(), "Le pseudonyme doit \u00eatre au minimum de 5 caract\u00e8res", 0).show();
+        } else if (this.editTextPassword.getText().toString().length() != this.editTextPasswordRepeat.getText().toString().length()) {
+            Toast.makeText(getApplicationContext(), "Les mots de passe entres ne correspondent pas. Essayez de nouveau!", 0).show();
+        } else if (this.latitude == null || this.longitude == null) {
+            Toast.makeText(this, "Pas encore localise!", 1).show();
         } else {
-            Toast.makeText(getApplicationContext(),
-                    "Un ou plusieurs champs sont vides", Toast.LENGTH_SHORT).show();
+            Volley.newRequestQueue(this).add(new C15715(1, REGISTER_URL, new C15693(), new C15704(), prenom, nom, password, email, phone));
         }
-
-
     }
 
-    @Override
     public void onStart() {
         super.onStart();
-
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client.connect();
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Register Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app deep link URI is correct.
-                Uri.parse("android-app://com.ilink/http/host/path")
-        );
-        AppIndex.AppIndexApi.start(client, viewAction);
+        this.client.connect();
+        AppIndex.AppIndexApi.start(this.client, Action.newAction(Action.TYPE_VIEW, "Register Page", Uri.parse("http://host/path"), Uri.parse("android-app://com.ilink/http/host/path")));
     }
 
-    @Override
     public void onStop() {
         super.onStop();
-
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Register Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app deep link URI is correct.
-                Uri.parse("android-app://com.ilink/http/host/path")
-        );
-        AppIndex.AppIndexApi.end(client, viewAction);
-        client.disconnect();
+        AppIndex.AppIndexApi.end(this.client, Action.newAction(Action.TYPE_VIEW, "Register Page", Uri.parse("http://host/path"), Uri.parse("android-app://com.ilink/http/host/path")));
+        this.client.disconnect();
     }
 }

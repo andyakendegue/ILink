@@ -1,218 +1,180 @@
 package com.ilink;
 
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
+import com.android.volley.Response.ErrorListener;
+import com.android.volley.Response.Listener;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-
-import org.json.JSONException;
-
 import java.util.HashMap;
 import java.util.Map;
+import org.json.JSONException;
 
 public class ActivateGeolocatedActivity extends AppCompatActivity {
-
-    public static final String KEY_EMAIL = "email";
-    public static final String KEY_PHONE = "phone";
     public static final String KEY_CATEGORY = "categorie";
+    public static final String KEY_EMAIL = "email";
+    public static final String KEY_MEMBER_CODE = "code_membre";
     public static final String KEY_NOMBRE_CODES = "nbre_code";
     public static final String KEY_NOMBRE_CODES_SUPERVISEUR = "nbre_code_superviseur";
-    public static final String KEY_MEMBER_CODE = "code_membre";
-    public static final String KEY_VALIDATE = "validate";
+    public static final String KEY_PHONE = "phone";
     public static final String KEY_TAG = "tag";
+    public static final String KEY_VALIDATE = "validate";
+    Button btnValidate;
     public String category;
-    EditText editTextValidation;
-    EditText editTextNombreMembres;
-    EditText editTextNombreGeo;
-    TextView textNombreMembres;
-    TextView textNombreGeo;
-    String validation;
     String code_membre;
+    EditText editTextNombreGeo;
+    EditText editTextNombreMembres;
+    EditText editTextValidation;
     String nbre_codes;
     String nbre_codes_geo;
-    Button btnValidate;
+    TextView textNombreGeo;
+    TextView textNombreMembres;
+    String validation;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        ActionBar actionBar = getSupportActionBar();
-        actionBar.hide();
-        setContentView(R.layout.activity_activate);
-        final SharedPreferences sharedPreferences = ActivateGeolocatedActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-        final String validation_code = sharedPreferences.getString(Config.VALIDATION_CODE_SHARED_PREF, "Not Available");
-        category = sharedPreferences.getString(Config.CATEGORY_SHARED_PREF, "Not Available");
-        code_membre = sharedPreferences.getString(Config.MEMBER_CODE_SHARED_PREF, "Not Available");
+    /* renamed from: com.ilink.ActivateGeolocatedActivity.1 */
+    class C15061 implements OnClickListener {
+        final /* synthetic */ SharedPreferences val$sharedPreferences;
+        final /* synthetic */ String val$validation_code;
 
-
-
-        editTextValidation = (EditText) findViewById(R.id.editTextValidation);
-        editTextNombreMembres = (EditText) findViewById(R.id.editTextNombreMembres);
-        editTextNombreGeo = (EditText) findViewById(R.id.editTextNombreGeo);
-        textNombreGeo = (TextView) findViewById(R.id.textNombreGeo);
-        textNombreMembres = (TextView) findViewById(R.id.textNombreMembres);
-        if(category.equalsIgnoreCase("geolocated") || category.equalsIgnoreCase("super") ) {
-
-            textNombreMembres.setVisibility(View.INVISIBLE);
-            textNombreMembres.setHeight(0);
-            editTextNombreMembres.setVisibility(View.INVISIBLE);
-            editTextNombreMembres.setHeight(0);
-            textNombreGeo.setVisibility(View.INVISIBLE);
-            textNombreGeo.setHeight(0);
-            editTextNombreGeo.setVisibility(View.INVISIBLE);
-            editTextNombreGeo.setHeight(0);
-
-        } else {
-            textNombreMembres.setVisibility(View.VISIBLE);
-            editTextNombreMembres.setVisibility(View.VISIBLE);
-
-            textNombreGeo.setVisibility(View.VISIBLE);
-            editTextNombreGeo.setVisibility(View.VISIBLE);
-
+        C15061(String str, SharedPreferences sharedPreferences) {
+            this.val$validation_code = str;
+            this.val$sharedPreferences = sharedPreferences;
         }
-        btnValidate = (Button) findViewById(R.id.btnValidate);
 
-        btnValidate.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                validation = editTextValidation.getText().toString();
-                if(category.equalsIgnoreCase("geolocated")) {
-                    nbre_codes = "0";
-                    nbre_codes_geo = "0";
-                } else {
-                    nbre_codes = editTextNombreMembres.getText().toString();
-                    nbre_codes_geo = editTextNombreGeo.getText().toString();
-                }
-                if (validation_code.equalsIgnoreCase(validation)) {
-
-                    //Creating editor to store values to shared preferences
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-
-                    //Adding values to editor
-
-                    editor.putString(Config.VALIDATION_SHARED_PREF, "oui");
-
-
-                    //Saving values to editor
-                    editor.commit();
-
-                    try {
-                        validateUser();
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-
-
-                } else {
-                    Toast.makeText(ActivateGeolocatedActivity.this, "Code de Validation incorrect", Toast.LENGTH_LONG).show();
-
-                }
-
+        public void onClick(View v) {
+            ActivateGeolocatedActivity.this.validation = ActivateGeolocatedActivity.this.editTextValidation.getText().toString();
+            if (ActivateGeolocatedActivity.this.category.equalsIgnoreCase("geolocated")) {
+                ActivateGeolocatedActivity.this.nbre_codes = "0";
+                ActivateGeolocatedActivity.this.nbre_codes_geo = "0";
+            } else {
+                ActivateGeolocatedActivity.this.nbre_codes = ActivateGeolocatedActivity.this.editTextNombreMembres.getText().toString();
+                ActivateGeolocatedActivity.this.nbre_codes_geo = ActivateGeolocatedActivity.this.editTextNombreGeo.getText().toString();
             }
-        });
-
+            if (this.val$validation_code.equalsIgnoreCase(ActivateGeolocatedActivity.this.validation)) {
+                Editor editor = this.val$sharedPreferences.edit();
+                editor.putString(ActivateGeolocatedActivity.KEY_VALIDATE, "oui");
+                editor.commit();
+                try {
+                    ActivateGeolocatedActivity.this.validateUser();
+                    return;
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    return;
+                }
+            }
+            Toast.makeText(ActivateGeolocatedActivity.this, "Code de Validation incorrect", 1).show();
+        }
     }
 
+    /* renamed from: com.ilink.ActivateGeolocatedActivity.2 */
+    class C15072 implements Listener<String> {
+        C15072() {
+        }
 
-
-    public void validateUser ()throws JSONException{
-
-        String tag_json_arry = "json_array_req";
-
-
-
-        String url = "http://ilink-app.com/app/select/validation.php";
-
-        final SharedPreferences sharedPreferences = this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-        final String phone = sharedPreferences.getString(Config.PHONE_SHARED_PREF, "Not Available");
-
-
-
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, url,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        //Toast.makeText(RegisterActivity.this, response, Toast.LENGTH_LONG).show();
-                        //Toast.makeText(TamponActivity.this, "Nice!", Toast.LENGTH_LONG).show();
-                        // Toast.makeText(getActivity(), "Localisation a jour!", Toast.LENGTH_LONG).show();
-                        if(response.equalsIgnoreCase(Config.LOGIN_SUCCESS)){
-                            final SharedPreferences sharedPreferences = ActivateGeolocatedActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-                            category = sharedPreferences.getString(Config.CATEGORY_SHARED_PREF, "Not Available");
-                            if(category.equalsIgnoreCase("utilisateur")){
-
-                                Intent i = new Intent(ActivateGeolocatedActivity.this, MapsActivity.class);
-                                startActivity(i);
-                                finish();
-
-                            } else if (category.equalsIgnoreCase("super")) {
-                                Intent i = new Intent(ActivateGeolocatedActivity.this, SuperviseurHomeActivity.class);
-                                startActivity(i);
-                                finish();
-
-                            } else if (category.equalsIgnoreCase("hyper")) {
-                                Intent i = new Intent(ActivateGeolocatedActivity.this, HyperviseurHomeActivity.class);
-                                startActivity(i);
-                                finish();
-
-                            } else if (category.equalsIgnoreCase("geolocated")) {
-                                Intent i = new Intent(ActivateGeolocatedActivity.this, HomeActivity.class);
-                                startActivity(i);
-                                finish();
-
-                            } else {
-                                Toast.makeText(ActivateGeolocatedActivity.this, "Impossible de vous connecter. Veuillez redemarrer l'application", Toast.LENGTH_LONG).show();
-                            }
-
-
-                        } else {
-                            Toast.makeText(ActivateGeolocatedActivity.this, "Impossible de mettre a jour votre compte "+response, Toast.LENGTH_LONG).show();
-
-
-                        }
-
-
-
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Toast.makeText(ActivateGeolocatedActivity.this,"Impossible de se connecter au serveur :" +error.toString(), Toast.LENGTH_LONG).show();
-
-                        //nomLabel.setText(error.toString());
-                    }
-                }) {
-            @Override
-            protected Map<String, String> getParams() {
-                Map<String, String> params = new HashMap<String, String>();
-                params.put(KEY_PHONE, phone);
-                params.put(KEY_NOMBRE_CODES, nbre_codes);
-                params.put(KEY_NOMBRE_CODES_SUPERVISEUR, nbre_codes_geo);
-                params.put(KEY_CATEGORY , category);
-                params.put(KEY_MEMBER_CODE, code_membre);
-                params.put(KEY_VALIDATE, "oui");
-                return params;
+        public void onResponse(String response) {
+            if (response.equalsIgnoreCase(Config.LOGIN_SUCCESS)) {
+                SharedPreferences sharedPreferences = ActivateGeolocatedActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, 0);
+                ActivateGeolocatedActivity.this.category = sharedPreferences.getString(RegisterSimpleActivity.KEY_CATEGORY, "Not Available");
+                if (ActivateGeolocatedActivity.this.category.equalsIgnoreCase("utilisateur")) {
+                    ActivateGeolocatedActivity.this.startActivity(new Intent(ActivateGeolocatedActivity.this, MapsActivity.class));
+                    ActivateGeolocatedActivity.this.finish();
+                    return;
+                } else if (ActivateGeolocatedActivity.this.category.equalsIgnoreCase("super")) {
+                    ActivateGeolocatedActivity.this.startActivity(new Intent(ActivateGeolocatedActivity.this, SuperviseurHomeActivity.class));
+                    ActivateGeolocatedActivity.this.finish();
+                    return;
+                } else if (ActivateGeolocatedActivity.this.category.equalsIgnoreCase("hyper")) {
+                    ActivateGeolocatedActivity.this.startActivity(new Intent(ActivateGeolocatedActivity.this, HyperviseurHomeActivity.class));
+                    ActivateGeolocatedActivity.this.finish();
+                    return;
+                } else if (ActivateGeolocatedActivity.this.category.equalsIgnoreCase("geolocated")) {
+                    ActivateGeolocatedActivity.this.startActivity(new Intent(ActivateGeolocatedActivity.this, HomeActivity.class));
+                    ActivateGeolocatedActivity.this.finish();
+                    return;
+                } else {
+                    Toast.makeText(ActivateGeolocatedActivity.this, "Impossible de vous connecter. Veuillez redemarrer l'application", 1).show();
+                    return;
+                }
             }
+            Toast.makeText(ActivateGeolocatedActivity.this, "Impossible de mettre a jour votre compte " + response, 1).show();
+        }
+    }
 
+    /* renamed from: com.ilink.ActivateGeolocatedActivity.3 */
+    class C15083 implements ErrorListener {
+        C15083() {
+        }
 
-        };
-        RequestQueue requestQueue = Volley.newRequestQueue(this);
-        //requestQueue.add(userRequest);
+        public void onErrorResponse(VolleyError error) {
+            Toast.makeText(ActivateGeolocatedActivity.this, "Impossible de se connecter au serveur :" + error.toString(), 1).show();
+        }
+    }
 
-        requestQueue.add(stringRequest);
+    /* renamed from: com.ilink.ActivateGeolocatedActivity.4 */
+    class C15094 extends StringRequest {
+        final /* synthetic */ String val$phone;
 
+        C15094(int x0, String x1, Listener x2, ErrorListener x3, String str) {
+            this.val$phone = str;
+            super(x0, x1, x2, x3);
+        }
+
+        protected Map<String, String> getParams() {
+            Map<String, String> params = new HashMap();
+            params.put(ActivateGeolocatedActivity.KEY_PHONE, this.val$phone);
+            params.put(ActivateGeolocatedActivity.KEY_NOMBRE_CODES, ActivateGeolocatedActivity.this.nbre_codes);
+            params.put(ActivateGeolocatedActivity.KEY_NOMBRE_CODES_SUPERVISEUR, ActivateGeolocatedActivity.this.nbre_codes_geo);
+            params.put(ActivateGeolocatedActivity.KEY_CATEGORY, ActivateGeolocatedActivity.this.category);
+            params.put(ActivateGeolocatedActivity.KEY_MEMBER_CODE, ActivateGeolocatedActivity.this.code_membre);
+            params.put(ActivateGeolocatedActivity.KEY_VALIDATE, "oui");
+            return params;
+        }
+    }
+
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getSupportActionBar().hide();
+        setContentView((int) C1558R.layout.activity_activate);
+        SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, 0);
+        String validation_code = sharedPreferences.getString(Config.VALIDATION_CODE_SHARED_PREF, "Not Available");
+        this.category = sharedPreferences.getString(RegisterSimpleActivity.KEY_CATEGORY, "Not Available");
+        this.code_membre = sharedPreferences.getString(RegisterSimpleActivity.KEY_MEMBER_CODE, "Not Available");
+        this.editTextValidation = (EditText) findViewById(C1558R.id.editTextValidation);
+        this.editTextNombreMembres = (EditText) findViewById(C1558R.id.editTextNombreMembres);
+        this.editTextNombreGeo = (EditText) findViewById(C1558R.id.editTextNombreGeo);
+        this.textNombreGeo = (TextView) findViewById(C1558R.id.textNombreGeo);
+        this.textNombreMembres = (TextView) findViewById(C1558R.id.textNombreMembres);
+        if (this.category.equalsIgnoreCase("geolocated") || this.category.equalsIgnoreCase("super")) {
+            this.textNombreMembres.setVisibility(4);
+            this.textNombreMembres.setHeight(0);
+            this.editTextNombreMembres.setVisibility(4);
+            this.editTextNombreMembres.setHeight(0);
+            this.textNombreGeo.setVisibility(4);
+            this.textNombreGeo.setHeight(0);
+            this.editTextNombreGeo.setVisibility(4);
+            this.editTextNombreGeo.setHeight(0);
+        } else {
+            this.textNombreMembres.setVisibility(0);
+            this.editTextNombreMembres.setVisibility(0);
+            this.textNombreGeo.setVisibility(0);
+            this.editTextNombreGeo.setVisibility(0);
+        }
+        this.btnValidate = (Button) findViewById(C1558R.id.btnValidate);
+        this.btnValidate.setOnClickListener(new C15061(validation_code, sharedPreferences));
+    }
+
+    public void validateUser() throws JSONException {
+        String tag_json_arry = "json_array_req";
+        Volley.newRequestQueue(this).add(new C15094(1, "http://ilink-app.com/app/select/validation.php", new C15072(), new C15083(), getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(KEY_PHONE, "Not Available")));
     }
 }

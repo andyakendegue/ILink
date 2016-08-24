@@ -1,14 +1,12 @@
 package com.ilink;
 
-import android.Manifest;
-import android.app.Activity;
 import android.app.Dialog;
-import android.content.Context;
 import android.content.DialogInterface;
+import android.content.DialogInterface.OnMultiChoiceClickListener;
 import android.content.Intent;
-import android.content.IntentSender;
+import android.content.IntentSender.SendIntentException;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
+import android.content.SharedPreferences.Editor;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -17,20 +15,19 @@ import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
-import android.provider.Settings;
-import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.AdapterView;
+import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -39,32 +36,36 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
-
-import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
+import com.afollestad.materialdialogs.MaterialDialog.Builder;
+import com.android.volley.Response.ErrorListener;
+import com.android.volley.Response.Listener;
 import com.android.volley.VolleyError;
 import com.android.volley.VolleyLog;
 import com.android.volley.toolbox.JsonArrayRequest;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-import com.directions.route.AbstractRouting;
+import com.directions.route.AbstractRouting.TravelMode;
+import com.directions.route.BuildConfig;
 import com.directions.route.Route;
 import com.directions.route.RouteException;
 import com.directions.route.Routing;
 import com.directions.route.RoutingListener;
+import com.google.android.gms.cast.TextTrackStyle;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
+import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
+import com.google.android.gms.games.GamesStatusCodes;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
@@ -74,1935 +75,1062 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.wearable.MessageApi;
+import com.ilink.Util.Operations;
 import com.ilink.app.AppController;
 import com.ilink.model.myMarker;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapClickListener, OnMarkerClickListener, LocationListener, RoutingListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-
-
-    private LocationManager locationManager;
-    private Marker marker;
-    private MaterialDialog pDialog;
-    private String TAG = "tag";
-    private RelativeLayout mapLayout;
-    private static int ADVICE_TIME_OUT = 3000;
-    private boolean checked;
-    private boolean notShowing = false;
-
-    //boolean variable to check user is logged in or not
-    //initially it is false
-    private boolean loggedIn = false;
-    private int typeReseau = 1;
-
-    // Route
-
-    protected LatLng start;
-    protected LatLng end;
-    private static final String LOG_TAG = "MyActivity";
-    private ArrayList<Polyline> polylines;
-    private static final int[] COLORS = new int[]{R.color.primary_dark, R.color.primary, R.color.primary_light, R.color.accent, R.color.primary_dark_material_light};
-    private Button sendRoute;
-    private ImageButton imageBtnRoute;
-    Double latitude;
-    Double longitude;
-    private static final String REGISTER_URL = "http://ilink-app.com/app/";
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, OnMapClickListener, OnMarkerClickListener, LocationListener, RoutingListener, ConnectionCallbacks, OnConnectionFailedListener {
+    private static int ADVICE_TIME_OUT = 0;
+    private static final int[] COLORS;
+    private static final int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     public static final String KEY_EMAIL = "email";
-    public static final String KEY_PHONE = "phone";
     public static final String KEY_LATITUDE = "latitude";
     public static final String KEY_LONGITUDE = "longitude";
+    public static final String KEY_PHONE = "phone";
     public static final String KEY_TAG = "tag";
-    private LinearLayout relativeLayout;
-    private FrameLayout frameLayout;
+    private static final String LOG_TAG = "MyActivity";
+    private static final String REGISTER_URL = "http://ilink-app.com/app/";
+    private long FASTEST_INTERVAL;
+    private Spinner ListDistance;
+    private Spinner ListMontant;
+    private String TAG;
+    private long UPDATE_INTERVAL;
+    private boolean checked;
+    private int connexionCompte;
+    private Criteria crit;
+    private Location currentLoc;
+    private View customSearch;
     private TextView displayDistance;
     private TextView displayDuration;
-    private Criteria crit = new Criteria();
-    private Location currentLoc;
-    private SharedPreferences sharedPreferences;
-
-    private int connexionCompte;
-
-    private SupportMapFragment mapFragment;
-    private GoogleMap map;
-    private GoogleApiClient mGoogleApiClient;
-    private LocationRequest mLocationRequest;
-    private long UPDATE_INTERVAL = 60000;  /* 60 secs */
-    private long FASTEST_INTERVAL = 5000; /* 5 secs */
-    private ArrayList<myMarker> mMyMarkersArray = new ArrayList<myMarker>();
-    private HashMap<Marker, myMarker> mMarkersHashMap;
-
-    private View customSearch;
-    private LayoutInflater inflater;
-
-    /*
-     * Define a request code to send to Google Play services This code is
-     * returned in Activity.onActivityResult
-     */
-    private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
-    private Spinner ListDistance;
     private String[] distanceItem;
     private String e_distance;
-    private Spinner ListMontant;
-    private String[] montantItem;
     private String e_montant;
+    protected LatLng end;
+    private FrameLayout frameLayout;
+    private ImageButton imageBtnRoute;
+    private LayoutInflater inflater;
+    Double latitude;
+    private LocationManager locationManager;
+    private boolean loggedIn;
+    Double longitude;
+    private GoogleApiClient mGoogleApiClient;
+    private LocationRequest mLocationRequest;
+    private HashMap<Marker, myMarker> mMarkersHashMap;
+    private ArrayList<myMarker> mMyMarkersArray;
+    private GoogleMap map;
+    private SupportMapFragment mapFragment;
+    private RelativeLayout mapLayout;
+    private Marker marker;
+    private String[] montantItem;
+    private boolean notShowing;
+    private MaterialDialog pDialog;
+    private ArrayList<Polyline> polylines;
+    private LinearLayout relativeLayout;
+    private Button sendRoute;
+    private SharedPreferences sharedPreferences;
+    protected LatLng start;
+    private int typeReseau;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maps);
-        CheckEnableGPS();
-        latitude = 0.0;
-        longitude = 0.0;
-        displayDistance = (TextView) findViewById(R.id.textDistance);
-        displayDuration = (TextView) findViewById(R.id.textDuration);
-        frameLayout = (FrameLayout) findViewById(R.id.frameMaps);
-        frameLayout.setVisibility(View.INVISIBLE);
-        relativeLayout = (LinearLayout) findViewById(R.id
-                .tgLayout);
-        sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
+    /* renamed from: com.ilink.MapsActivity.17 */
+    class AnonymousClass17 extends StringRequest {
+        final /* synthetic */ Double val$latit;
+        final /* synthetic */ Double val$longit;
+        final /* synthetic */ String val$phoneT;
 
-        connexionCompte = 0;
-
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fabMap);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-
-
-                logout();
-            }
-        });
-
-        fab.setVisibility(View.INVISIBLE);
-
-
-        FloatingActionButton fabSearch = (FloatingActionButton) findViewById(R.id.fabSearch);
-        fabSearch.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                /*new MaterialDialog.Builder(MapsActivity.this)
-                        .title(R.string.title_located)
-                        .content(R.string.mon_compte)
-                        .progress(true, 0)
-                        .show();
-                        */
-
-                inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-                customSearch = inflater.inflate(R.layout.dialog_customlayout, null, false);
-
-                // Distance
-
-                ListDistance = (Spinner) customSearch.findViewById(R.id.spinDistance);
-                List<String> listeDistance = new ArrayList<String>();
-                distanceItem = getResources().getStringArray(R.array.distance_minimale);
-                final int distanceLength = distanceItem.length;
-
-                for (int i = 0; i < distanceLength; i++) {
-                    listeDistance.add(distanceItem[i]);
-
-                }
-                ArrayAdapter<String> distanceAdapter = new ArrayAdapter<String>(MapsActivity.this, android.R.layout.simple_spinner_item, listeDistance);
-                //Le layout par défaut est android.R.layout.simple_spinner_dropdown_item
-                distanceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                ListDistance.setAdapter(distanceAdapter);
-                ListDistance.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                        e_distance = parent.getItemAtPosition(position).toString();
-
-
-                    }
-
-                    @Override
-                    public void onNothingSelected(AdapterView<?> parent) {
-                        e_distance = distanceItem[0].toString();
-                    }
-
-                });
-
-                // Montant
-
-                ListMontant = (Spinner) customSearch.findViewById(R.id.spinMontant);
-                List<String> listeMontant = new ArrayList<String>();
-                montantItem = getResources().getStringArray(R.array.montant_transaction);
-                final int montantLength = montantItem.length;
-
-                for (int i = 0; i < montantLength; i++) {
-                    listeMontant.add(montantItem[i]);
-
-                }
-                ArrayAdapter<String> montantAdapter = new ArrayAdapter<String>(MapsActivity.this, android.R.layout.simple_spinner_item, listeMontant);
-                //Le layout par défaut est android.R.layout.simple_spinner_dropdown_item
-                montantAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                ListMontant.setAdapter(montantAdapter);
-                ListMontant.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                        e_montant = parent.getItemAtPosition(position).toString();
-
-
-                    }
-
-                    @Override
-                    public void onNothingSelected(AdapterView<?> parent) {
-                        e_montant = montantItem[0].toString();
-                    }
-
-                });
-
-                boolean wrapInScrollView = true;
-                new MaterialDialog.Builder(MapsActivity.this)
-                        .title("Affinez votre recherche")
-                        .customView(customSearch, wrapInScrollView)
-                        .positiveText("Rechercher")
-                        .onPositive(new MaterialDialog.SingleButtonCallback() {
-
-                            @Override
-                            public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                                frameLayout.setVisibility(View.INVISIBLE);
-                                map.clear();
-                                new SearchAllLocations().execute();
-                            }
-                        })
-                        .negativeText("Annuler")
-                        .onNegative(new MaterialDialog.SingleButtonCallback() {
-                            @Override
-                            public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-
-                            }
-                        })
-                        .show();
-            }
-        });
-
-        mapLayout = (RelativeLayout) findViewById(R.id.maplayout);
-
-        polylines = new ArrayList<>();
-
-
-        mapFragment = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map));
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
-        } else {
-            //Toast.makeText(this, "Error - Map Fragment was null!!", Toast.LENGTH_SHORT).show();
+        AnonymousClass17(int x0, String x1, Listener x2, ErrorListener x3, String str, Double d, Double d2) {
+            this.val$phoneT = str;
+            this.val$latit = d;
+            this.val$longit = d2;
+            super(x0, x1, x2, x3);
         }
 
+        protected Map<String, String> getParams() {
+            Map<String, String> params = new HashMap();
+            params.put(MapsActivity.KEY_PHONE, this.val$phoneT);
+            params.put(MapsActivity.KEY_LATITUDE, String.valueOf(this.val$latit));
+            params.put(MapsActivity.KEY_LONGITUDE, String.valueOf(this.val$longit));
+            params.put(MapsActivity.KEY_TAG, "updateLocation");
+            return params;
+        }
+    }
 
-        new CheckLocations().execute();
-
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        crit.setAccuracy(Criteria.ACCURACY_FINE);
-
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        } else {
-            currentLoc = locationManager.getLastKnownLocation(locationManager
-                    .getBestProvider(crit, true));
+    /* renamed from: com.ilink.MapsActivity.1 */
+    class C15471 implements OnClickListener {
+        C15471() {
         }
 
+        public void onClick(View view) {
+            MapsActivity.this.logout();
+        }
+    }
 
+    /* renamed from: com.ilink.MapsActivity.2 */
+    class C15482 implements OnClickListener {
+        C15482() {
+        }
 
-        ToggleButton toggleSimple = (ToggleButton) findViewById(R.id.tgBtnSimple);
-        toggleSimple.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        public void onClick(View v) {
+            MapsActivity.this.inflater = (LayoutInflater) MapsActivity.this.getSystemService("layout_inflater");
+            MapsActivity.this.customSearch = MapsActivity.this.inflater.inflate(C1558R.layout.dialog_customlayout, null, false);
+            MapsActivity.this.ListDistance = (Spinner) MapsActivity.this.customSearch.findViewById(C1558R.id.spinDistance);
+            List<String> listeDistance = new ArrayList();
+            MapsActivity.this.distanceItem = MapsActivity.this.getResources().getStringArray(C1558R.array.distance_minimale);
+            for (Object add : MapsActivity.this.distanceItem) {
+                listeDistance.add(add);
+            }
+            ArrayAdapter<String> distanceAdapter = new ArrayAdapter(MapsActivity.this, 17367048, listeDistance);
+            distanceAdapter.setDropDownViewResource(17367049);
+            MapsActivity.this.ListDistance.setAdapter(distanceAdapter);
+            MapsActivity.this.ListDistance.setOnItemSelectedListener(new 1(this));
+            MapsActivity.this.ListMontant = (Spinner) MapsActivity.this.customSearch.findViewById(C1558R.id.spinMontant);
+            List<String> listeMontant = new ArrayList();
+            MapsActivity.this.montantItem = MapsActivity.this.getResources().getStringArray(C1558R.array.montant_transaction);
+            for (Object add2 : MapsActivity.this.montantItem) {
+                listeMontant.add(add2);
+            }
+            ArrayAdapter<String> montantAdapter = new ArrayAdapter(MapsActivity.this, 17367048, listeMontant);
+            montantAdapter.setDropDownViewResource(17367049);
+            MapsActivity.this.ListMontant.setAdapter(montantAdapter);
+            MapsActivity.this.ListMontant.setOnItemSelectedListener(new 2(this));
+            new Builder(MapsActivity.this).title((CharSequence) "Affinez votre recherche").customView(MapsActivity.this.customSearch, true).positiveText((CharSequence) "Rechercher").onPositive(new 4(this)).negativeText((CharSequence) "Annuler").onNegative(new 3(this)).show();
+        }
+    }
 
-                if (isChecked == false) {
-                    typeReseau = 1;
-                    map.clear();
-                    map.setOnMapLoadedCallback(new GoogleMap.OnMapLoadedCallback() {
-                        @Override
-                        public void onMapLoaded() {
-                            // Add a marker in Sydney and move the camera
-                            frameLayout.setVisibility(View.INVISIBLE);
+    /* renamed from: com.ilink.MapsActivity.3 */
+    class C15493 implements OnCheckedChangeListener {
+        C15493() {
+        }
 
-                            final SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-                            final String lat = sharedPreferences.getString(Config.LATITUDE_SHARED_PREF, "Not Available");
-                            final String lng = sharedPreferences.getString(Config.LONGITUDE_SHARED_PREF, "Not Available");
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            if (isChecked) {
+                MapsActivity.this.frameLayout.setVisibility(4);
+                MapsActivity.this.typeReseau = 2;
+                MapsActivity.this.map.clear();
+                new CheckAllLocations(null).execute(new String[0]);
+                MapsActivity.this.map.setOnMapLoadedCallback(new 2(this));
+                return;
+            }
+            MapsActivity.this.typeReseau = 1;
+            MapsActivity.this.map.clear();
+            MapsActivity.this.map.setOnMapLoadedCallback(new 1(this));
+            new CheckLocations(null).execute(new String[0]);
+        }
+    }
 
+    /* renamed from: com.ilink.MapsActivity.4 */
+    class C15504 implements OnClickListener {
+        C15504() {
+        }
 
-                            //double lati = currentLoc.getLatitude();
-                            //double longi = currentLoc.getLongitude();
-                            //LatLng latlng = new LatLng(lati, longi);
-                            LatLng latlng = new LatLng(latitude, longitude);
+        public void onClick(View view) {
+            MapsActivity.this.sendRequest();
+        }
+    }
 
-                            if (marker != null) {
-                                marker.remove();
-                            }
+    /* renamed from: com.ilink.MapsActivity.5 */
+    class C15515 implements OnClickListener {
+        C15515() {
+        }
 
-                            marker = map.addMarker(new MarkerOptions().title("Vous êtes ici!").position(
-                                    latlng).icon(BitmapDescriptorFactory.fromResource(R.drawable.main_marker)));
+        public void onClick(View view) {
+            MapsActivity.this.sendRequest();
+        }
+    }
 
-                            //latitude = Double.parseDouble(lat);
-                            //longitude = Double.parseDouble(lng);
+    /* renamed from: com.ilink.MapsActivity.6 */
+    class C15526 implements Runnable {
+        C15526() {
+        }
 
-                            map.setOnMarkerClickListener(MapsActivity.this);
+        public void run() {
+            MapsActivity.this.advice();
+        }
+    }
 
-                            map.getUiSettings().setZoomControlsEnabled(true);
-                            map.getUiSettings().setMapToolbarEnabled(false);
+    /* renamed from: com.ilink.MapsActivity.7 */
+    class C15537 implements Listener<JSONArray> {
+        C15537() {
+        }
 
-                            start = latlng;
-                            marker.showInfoWindow();
-
-                        }
-                    });
-                    new CheckLocations().execute();
-
-                } else {
-                    frameLayout.setVisibility(View.INVISIBLE);
-                    typeReseau = 2;
-                    map.clear();
-                    new CheckAllLocations().execute();
-                    map.setOnMapLoadedCallback(new GoogleMap.OnMapLoadedCallback() {
-                        @Override
-                        public void onMapLoaded() {
-                            // Add a marker in Sydney and move the camera
-
-                            //double lati = currentLoc.getLatitude();
-                            //double longi = currentLoc.getLongitude();
-                            //LatLng latlng = new LatLng(lati, longi);
-                            LatLng latlng = new LatLng(latitude, longitude);
-
-                            if (marker != null) {
-                                marker.remove();
-                            }
-
-                            marker = map.addMarker(new MarkerOptions().title("Vous êtes ici!").position(
-                                    latlng).icon(BitmapDescriptorFactory.fromResource(R.drawable.main_marker)));
-
-                            map.setOnMarkerClickListener(MapsActivity.this);
-
-                            map.getUiSettings().setZoomControlsEnabled(true);
-                            map.getUiSettings().setMapToolbarEnabled(false);
-
-
-                            start = latlng;
-                            marker.showInfoWindow();
-
-                            //Toast.makeText(MapsActivity.this, start.toString() + code, Toast.LENGTH_SHORT).show();
-                        }
-                    });
-
+        public void onResponse(JSONArray response) {
+            Log.d(MapsActivity.this.TAG, response.toString());
+            MapsActivity.this.hidePDialog();
+            for (int i = 0; i < response.length(); i++) {
+                try {
+                    JSONObject obj = response.getJSONObject(i);
+                    String network = MapsActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(RegisterSimpleActivity.KEY_NETWORK, "Pas disponible");
+                    if (obj.getString(MapsActivity.KEY_LATITUDE) != null && obj.getString(RegisterSimpleActivity.KEY_NETWORK).equals(network) && obj.getString(RegisterSimpleActivity.KEY_CATEGORY).equals("geolocated") && obj.getString("active").equals("oui")) {
+                        MapsActivity.this.map.addMarker(new MarkerOptions().title(obj.getString(RegisterSimpleActivity.KEY_LASTNAME)).position(new LatLng(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)), Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)))).icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.marker_member)));
+                    }
+                } catch (JSONException e) {
+                    Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", 1).show();
                 }
             }
-        });
-
-
-        sendRoute = (Button) findViewById(R.id.sendRoute);
-        sendRoute.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendRequest();
-
-
-            }
-
-        });
-
-        sendRoute.setVisibility(View.INVISIBLE);
-
-        imageBtnRoute = (ImageButton) findViewById(R.id.imageBtnRoute);
-
-        imageBtnRoute.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                sendRequest();
-
-
-            }
-
-        });
-        imageBtnRoute.setVisibility(View.INVISIBLE);
-
-
-        //In onresume fetching value from sharedpreference
-        SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-
-        //Fetching the boolean value form sharedpreferences
-        loggedIn = sharedPreferences.getBoolean(Config.LOGGEDIN_SHARED_PREF, false);
-
-        //If we will get true
-        if (loggedIn) {
-            //inscription.setVisibility(View.INVISIBLE);
-            //login.setVisibility(View.INVISIBLE);
-            fab.setVisibility(View.VISIBLE);
-
-        }
-
-        new Handler().postDelayed(new Runnable() {
-
-			/*
-             * Showing splash screen with a timer. This will be useful when you
-			 * want to show case your app logo / company
-			 */
-
-            @Override
-            public void run() {
-                // This method will be executed once the timer is over
-                // Start your app main activity
-
-
-                //Intent i = new Intent(SplashActivity.this, LoginActivity.class);
-                //startActivity(i);
-                advice();
-
-
-            }
-        }, ADVICE_TIME_OUT);
-
-
-    }
-
-
-    @Override
-    public void onBackPressed() {
-
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onResume() {
-        super.onResume();
-
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onPause() {
-        super.onPause();
-
-
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onLocationChanged(final Location currentloc) {
-
-
-        //On affiche dans un Toat la nouvelle Localisation
-        currentloc.setAccuracy(Criteria.ACCURACY_FINE);
-        final StringBuilder msg = new StringBuilder("latitude : ");
-        msg.append(currentloc.getLatitude());
-        msg.append("; longitude : ");
-        msg.append(currentloc.getLongitude());
-        if (marker != null) {
-            marker.remove();
-        }
-
-
-        //Mise à jour des coordonnées
-        final LatLng latLng = new LatLng(currentloc.getLatitude(), currentloc.getLongitude());
-
-        latitude = currentloc.getLatitude();
-        longitude = currentloc.getLongitude();
-
-
-        start = latLng;
-        SharedPreferences sharedPreferences = this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-        final String phone = sharedPreferences.getString(Config.PHONE_SHARED_PREF, "Not Available");
-
-            /*StringRequest stringRequest = new StringRequest(Request.Method.POST, REGISTER_URL,
-                    new Response.Listener<String>() {
-                        @Override
-                        public void onResponse(String response) {
-
-
-                        }
-                    },
-                    new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", Toast.LENGTH_LONG).show();
-                        }
-                    }) {
-                @Override
-                protected Map<String, String> getParams() {
-                    Map<String, String> params = new HashMap<String, String>();
-
-                    params.put(KEY_PHONE, phone);
-                    params.put(KEY_LATITUDE, String.valueOf(currentloc.getLatitude()));
-                    params.put(KEY_LONGITUDE, String.valueOf(currentloc.getLongitude()));
-                    params.put(KEY_TAG, "updateLocation");
-                    return params;
-                }
-
-
-            };
-
-            RequestQueue requestQueue = Volley.newRequestQueue(this);
-            requestQueue.add(stringRequest);
-*/
-
-
-        marker = map.addMarker(new MarkerOptions().title("Vous êtes ici!").position(
-                latLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.main_marker)));
-
-
-        if (connexionCompte == 0) {
-            CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(latLng, 15);
-            map.animateCamera(cu);
-
-            connexionCompte = 1;
-        }
-        marker.showInfoWindow();
-
-
-    }
-
-
-    private class CheckLocations extends AsyncTask<String, String, Boolean> {
-
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            /*nDialog = new MaterialDialog.Builder(MapsActivity.this);
-            nDialog.setTitle("Vérification de la connexion réseau");
-            nDialog.setContent("Chargement..");
-            nDialog.setProgress(true,0);
-            nDialog.setCancelable(false);
-            nDialog.show();
-            */
-
-            pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                    .title("Attendez svp!")
-                    .content("Vérification de la connexion réseau")
-                    .progress(true, 0)
-                    .cancelable(false)
-                    .show();
-
-
-        }
-
-        /**
-         * Gets current device state and checks for working internet connection by trying Google.
-         **/
-        @Override
-        protected Boolean doInBackground(String... args) {
-
-
-            ConnectivityManager cm = (ConnectivityManager) getBaseContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo netInfo = cm.getActiveNetworkInfo();
-            if (netInfo != null && netInfo.isConnected()) {
-                if (Util.Operations.isOnline(MapsActivity.this)) {
-                    return true;
-                } else {
-                    Toast.makeText(MapsActivity.this, "Pas de connexion internet", Toast.LENGTH_SHORT).show();
-                }
-
-            }
-            return false;
-
-        }
-
-        @Override
-        protected void onPostExecute(Boolean th) {
-
-            if (th == true) {
-                hidePDialog();
-                locations();
-            } else {
-                hidePDialog();
-                Toast.makeText(getBaseContext().getApplicationContext(), "Erreur lors de la connexion au réseau", Toast.LENGTH_LONG).show();
-
-            }
         }
     }
 
+    /* renamed from: com.ilink.MapsActivity.8 */
+    class C15548 implements ErrorListener {
+        C15548() {
+        }
 
-    private void locations() {
-        String tag_json_arry = "json_array_req";
+        public void onErrorResponse(VolleyError error) {
+            VolleyLog.m15d(MapsActivity.this.TAG, "Error: " + error.getMessage());
+            Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", 1).show();
+            MapsActivity.this.hidePDialog();
+        }
+    }
 
+    /* renamed from: com.ilink.MapsActivity.9 */
+    class C15559 implements Listener<JSONArray> {
+        C15559() {
+        }
 
-        pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                .title("Attendez svp!")
-                .content("Chargement marqueurs...")
-                .progress(true, 0)
-                .cancelable(false)
-                .show();
-
-
-        //String url = "http://ilink-app.com/app/select/locations.php";
-        String url = "http://ilink-app.com/app/select/locations.php";
-        // Creating volley request obj
-        JsonArrayRequest movieReq = new JsonArrayRequest(url,
-                new Response.Listener<JSONArray>() {
-                    @Override
-                    public void onResponse(JSONArray response) {
-                        Log.d(TAG, response.toString());
-                        hidePDialog();
-
-                        // Parsing json
-                        for (int i = 0; i < response.length(); i++) {
-                            try {
-                                JSONObject obj = response.getJSONObject(i);
-
-                                //In onresume fetching value from sharedpreference
-                                SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-
-                                //Fetching the boolean value form sharedpreferences
-                                final String network = sharedPreferences.getString(Config.NETWORK_SHARED_PREF, "Pas disponible");
-
-
-                                if (obj.getString("latitude") != null && obj.getString("network").equals(network) && obj.getString("category").equals("geolocated") && obj.getString("active").equals("oui")) {
-
-                                    final LatLng latLng = new LatLng(Double.parseDouble(obj.getString("latitude")), Double.parseDouble(obj.getString("longitude")));
-
-
-                                    map.addMarker(new MarkerOptions().title(obj.getString("lastname")).position(
-                                            latLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.marker_member)));
-
-                                } else {
-
-
-                                }
-
-
-                            } catch (JSONException e) {
-
-                                Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", Toast.LENGTH_LONG).show();
-                            }
-
-                        }
-
-                        // notifying list adapter about data changes
-                        // so that it renders the list view with updated data
-
+        public void onResponse(JSONArray response) {
+            Log.d(MapsActivity.this.TAG, response.toString());
+            MapsActivity.this.hidePDialog();
+            for (int i = 0; i < response.length(); i++) {
+                try {
+                    JSONObject obj = response.getJSONObject(i);
+                    String network = MapsActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(RegisterSimpleActivity.KEY_NETWORK, "Pas disponible");
+                    if (obj.getString(MapsActivity.KEY_LATITUDE) != null && obj.getString(RegisterSimpleActivity.KEY_CATEGORY).equals("geolocated") && obj.getString("active").equals("oui")) {
+                        MapsActivity.this.map.addMarker(new MarkerOptions().title(obj.getString(RegisterSimpleActivity.KEY_LASTNAME)).position(new LatLng(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)), Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)))).icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.marker_member)));
                     }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                VolleyLog.d(TAG, "Error: " + error.getMessage());
-                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", Toast.LENGTH_LONG).show();
-                hidePDialog();
-
+                } catch (JSONException e) {
+                    Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", 1).show();
+                }
             }
-        });
-        // Adding request to request queue
-        AppController.getInstance().addToRequestQueue(movieReq, tag_json_arry);
-
+        }
     }
 
     private class CheckAllLocations extends AsyncTask<String, String, Boolean> {
+        private CheckAllLocations() {
+        }
 
-
-        @Override
         protected void onPreExecute() {
             super.onPreExecute();
-
-            pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                    .title("Attendez svp!")
-                    .content("Vérification de la connexion réseau")
-                    .progress(true, 0)
-                    .cancelable(false)
-                    .show();
+            MapsActivity.this.pDialog = new Builder(MapsActivity.this).title((CharSequence) "Attendez svp!").content((CharSequence) "V\u00e9rification de la connexion r\u00e9seau").progress(true, 0).cancelable(false).show();
         }
 
-        /**
-         * Gets current device state and checks for working internet connection by trying Google.
-         **/
-        @Override
         protected Boolean doInBackground(String... args) {
-
-
-            ConnectivityManager cm = (ConnectivityManager) getBaseContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo netInfo = cm.getActiveNetworkInfo();
+            NetworkInfo netInfo = ((ConnectivityManager) MapsActivity.this.getBaseContext().getSystemService("connectivity")).getActiveNetworkInfo();
             if (netInfo != null && netInfo.isConnected()) {
-                if (Util.Operations.isOnline(MapsActivity.this)) {
-                    return true;
-                } else {
-                    Toast.makeText(MapsActivity.this, "Pas de connexion internet", Toast.LENGTH_SHORT).show();
+                if (Operations.isOnline(MapsActivity.this)) {
+                    return Boolean.valueOf(true);
                 }
-
+                Toast.makeText(MapsActivity.this, "Pas de connexion internet", 0).show();
             }
-            return false;
-
+            return Boolean.valueOf(false);
         }
 
-        @Override
         protected void onPostExecute(Boolean th) {
-
-            if (th == true) {
-                hidePDialog();
-                allLocations();
-            } else {
-                hidePDialog();
-                Toast.makeText(getBaseContext().getApplicationContext(), "Erreur lors de la connexion au réseau", Toast.LENGTH_LONG).show();
-
+            if (th.booleanValue()) {
+                MapsActivity.this.hidePDialog();
+                MapsActivity.this.allLocations();
+                return;
             }
+            MapsActivity.this.hidePDialog();
+            Toast.makeText(MapsActivity.this.getBaseContext().getApplicationContext(), "Erreur lors de la connexion au r\u00e9seau", 1).show();
         }
     }
 
+    private class CheckLocations extends AsyncTask<String, String, Boolean> {
+        private CheckLocations() {
+        }
 
-    private void allLocations() {
-        String tag_json_arry = "json_array_req";
+        protected void onPreExecute() {
+            super.onPreExecute();
+            MapsActivity.this.pDialog = new Builder(MapsActivity.this).title((CharSequence) "Attendez svp!").content((CharSequence) "V\u00e9rification de la connexion r\u00e9seau").progress(true, 0).cancelable(false).show();
+        }
 
-
-        pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                .title("Attendez svp!")
-                .content("Chargement marqueurs...")
-                .progress(true, 0)
-                .cancelable(false)
-                .show();
-
-        //String url = "http://ilink-app.com/app/select/locations.php";
-        String url = "http://ilink-app.com/app/select/locations.php";
-        // Creating volley request obj
-        JsonArrayRequest movieReq = new JsonArrayRequest(url,
-                new Response.Listener<JSONArray>() {
-                    @Override
-                    public void onResponse(JSONArray response) {
-                        Log.d(TAG, response.toString());
-                        hidePDialog();
-
-                        // Parsing json
-                        for (int i = 0; i < response.length(); i++) {
-                            try {
-                                JSONObject obj = response.getJSONObject(i);
-
-                                //In onresume fetching value from sharedpreference
-                                SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-
-                                //Fetching the boolean value form sharedpreferences
-                                final String network = sharedPreferences.getString(Config.NETWORK_SHARED_PREF, "Pas disponible");
-
-
-                                if (obj.getString("latitude") != null && obj.getString("category").equals("geolocated") && obj.getString("active").equals("oui")) {
-
-                                    final LatLng latLng = new LatLng(Double.parseDouble(obj.getString("latitude")), Double.parseDouble(obj.getString("longitude")));
-
-
-                                    map.addMarker(new MarkerOptions().title(obj.getString("lastname")).position(
-                                            latLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.marker_member)));
-
-
-                                } else {
-
-
-                                }
-
-
-                            } catch (JSONException e) {
-                                //e.printStackTrace();
-                                Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", Toast.LENGTH_LONG).show();
-                            }
-
-                        }
-
-                        // notifying list adapter about data changes
-                        // so that it renders the list view with updated data
-
-                    }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                VolleyLog.d(TAG, "Error: " + error.getMessage());
-                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", Toast.LENGTH_LONG).show();
-                hidePDialog();
-
+        protected Boolean doInBackground(String... args) {
+            NetworkInfo netInfo = ((ConnectivityManager) MapsActivity.this.getBaseContext().getSystemService("connectivity")).getActiveNetworkInfo();
+            if (netInfo != null && netInfo.isConnected()) {
+                if (Operations.isOnline(MapsActivity.this)) {
+                    return Boolean.valueOf(true);
+                }
+                Toast.makeText(MapsActivity.this, "Pas de connexion internet", 0).show();
             }
-        });
-        // Adding request to request queue
-        AppController.getInstance().addToRequestQueue(movieReq, tag_json_arry);
+            return Boolean.valueOf(false);
+        }
 
+        protected void onPostExecute(Boolean th) {
+            if (th.booleanValue()) {
+                MapsActivity.this.hidePDialog();
+                MapsActivity.this.locations();
+                return;
+            }
+            MapsActivity.this.hidePDialog();
+            Toast.makeText(MapsActivity.this.getBaseContext().getApplicationContext(), "Erreur lors de la connexion au r\u00e9seau", 1).show();
+        }
+    }
+
+    public static class ErrorDialogFragment extends DialogFragment {
+        private Dialog mDialog;
+
+        public ErrorDialogFragment() {
+            this.mDialog = null;
+        }
+
+        public void setDialog(Dialog dialog) {
+            this.mDialog = dialog;
+        }
+
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            return this.mDialog;
+        }
     }
 
     private class SearchAllLocations extends AsyncTask<String, String, Boolean> {
+        private SearchAllLocations() {
+        }
 
-
-        @Override
         protected void onPreExecute() {
             super.onPreExecute();
-
-            pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                    .title("Attendez svp!")
-                    .content("Vérification de la connexion réseau")
-                    .progress(true, 0)
-                    .cancelable(false)
-                    .show();
+            MapsActivity.this.pDialog = new Builder(MapsActivity.this).title((CharSequence) "Attendez svp!").content((CharSequence) "V\u00e9rification de la connexion r\u00e9seau").progress(true, 0).cancelable(false).show();
         }
 
-        /**
-         * Gets current device state and checks for working internet connection by trying Google.
-         **/
-        @Override
         protected Boolean doInBackground(String... args) {
-
-
-            ConnectivityManager cm = (ConnectivityManager) getBaseContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo netInfo = cm.getActiveNetworkInfo();
+            NetworkInfo netInfo = ((ConnectivityManager) MapsActivity.this.getBaseContext().getSystemService("connectivity")).getActiveNetworkInfo();
             if (netInfo != null && netInfo.isConnected()) {
-                if (Util.Operations.isOnline(MapsActivity.this)) {
-                    return true;
-                } else {
-                    Toast.makeText(MapsActivity.this, "Pas de connexion internet", Toast.LENGTH_SHORT).show();
+                if (Operations.isOnline(MapsActivity.this)) {
+                    return Boolean.valueOf(true);
                 }
-
+                Toast.makeText(MapsActivity.this, "Pas de connexion internet", 0).show();
             }
-            return false;
-
+            return Boolean.valueOf(false);
         }
 
-        @Override
         protected void onPostExecute(Boolean th) {
-
-            if (th == true) {
-                hidePDialog();
-                searchallLocations(e_distance, e_montant);
-            } else {
-                hidePDialog();
-                Toast.makeText(getBaseContext().getApplicationContext(), "Erreur lors de la connexion au réseau", Toast.LENGTH_LONG).show();
-
+            if (th.booleanValue()) {
+                MapsActivity.this.hidePDialog();
+                MapsActivity.this.searchallLocations(MapsActivity.this.e_distance, MapsActivity.this.e_montant);
+                return;
             }
+            MapsActivity.this.hidePDialog();
+            Toast.makeText(MapsActivity.this.getBaseContext().getApplicationContext(), "Erreur lors de la connexion au r\u00e9seau", 1).show();
         }
     }
 
-
-    private void searchallLocations(String distance, String montant) {
-        String tag_json_arry = "json_array_req";
-
-
-        pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                .title("Attendez svp!")
-                .content("Chargement des marqueurs...")
-                .progress(true, 0)
-                .cancelable(false)
-                .show();
-
-        //String url = "http://ilink-app.com/app/select/locations.php";
-        String url = "http://ilink-app.com/app/select/locations.php";
-        // Creating volley request obj
-        JsonArrayRequest movieReq = new JsonArrayRequest(url,
-                new Response.Listener<JSONArray>() {
-                    @Override
-                    public void onResponse(JSONArray response) {
-                        Log.d(TAG, response.toString());
-                        hidePDialog();
-
-                        //Toast.makeText(MapsActivity.this, "Distance "+e_distance+"Montant "+e_montant, Toast.LENGTH_SHORT).show();
-
-
-                        float distance_minimale = 0.0f;
-
-
-                        // Parsing json
-                        for (int i = 0; i < response.length(); i++) {
-                            try {
-                                JSONObject obj = response.getJSONObject(i);
-
-                                //In onresume fetching value from sharedpreference
-                                SharedPreferences sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-
-                                //Fetching the boolean value form sharedpreferences
-                                final String network = sharedPreferences.getString(Config.NETWORK_SHARED_PREF, "Pas disponible");
-
-
-                                if (typeReseau == 1 && obj.getString("latitude") != null && obj.getString("network").equals(network) && obj.getString("category").equals("geolocated") && obj.getString("active").equals("oui")) {
-
-                                    final LatLng latLng = new LatLng(Double.parseDouble(obj.getString("latitude")), Double.parseDouble(obj.getString("longitude")));
-
-                                    Marker custom = map.addMarker(new MarkerOptions().title(obj.getString("lastname")).position(
-                                            latLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.marker_member)));
-
-                                    Location starting = new Location("Depart");
-                                    starting.setLatitude(start.latitude);
-                                    starting.setLongitude(start.longitude);
-                                    Location arrival = new Location("Arrivee");
-                                    arrival.setLatitude(Double.parseDouble(obj.getString("latitude")));
-                                    arrival.setLongitude(Double.parseDouble(obj.getString("longitude")));
-                                    float localDistance = getlocalDistance(starting, arrival);
-
-                                    //getlocalDistance(starting, arrival);
-
-                                    if (e_distance.equalsIgnoreCase("500m")) {
-                                        distance_minimale = 500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("1km")) {
-                                        distance_minimale = 1000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("1,5km")) {
-                                        distance_minimale = 1500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("2km")) {
-                                        distance_minimale = 2000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("2,5km")) {
-                                        distance_minimale = 2500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("3km")) {
-                                        distance_minimale = 3000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("4km")) {
-                                        distance_minimale = 4000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("5km")) {
-                                        distance_minimale = 5000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("6km")) {
-                                        distance_minimale = 6000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("7km")) {
-                                        distance_minimale = 7000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("8km")) {
-                                        distance_minimale = 8000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("9km")) {
-                                        distance_minimale = 9000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("10km")) {
-                                        distance_minimale = 10000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("20km")) {
-                                        distance_minimale = 20000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("30km")) {
-                                        distance_minimale = 30000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("50km")) {
-                                        distance_minimale = 50000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("100km")) {
-                                        distance_minimale = 100000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("200km")) {
-                                        distance_minimale = 200000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("Tous les points")) {
-                                        distance_minimale = 2000000000.0f;
-
-                                    }
-                                    // Toast.makeText(MapsActivity.this, "ok :"+localDistance +" Distance"+distance_minimale, Toast.LENGTH_SHORT).show();
-
-
-                                    if (localDistance >= distance_minimale) {
-                                        custom.setVisible(false);
-                                    }
-                                    String dist;
-
-                                    float dista = (float) (Math.round(localDistance * 100.0) / 100.0);
-                                    dist = dista + " M";
-
-                                    if (localDistance > 1000.0f) {
-                                        localDistance = localDistance / 1000.0f;
-                                        dista = (float) (Math.round(localDistance * 100.0) / 100.0);
-
-                                        dist = dista + " KM";
-                                    }
-
-
-                                } else if (typeReseau == 2 && obj.getString("latitude") != null && obj.getString("category").equals("geolocated") && obj.getString("active").equals("oui")) {
-
-                                    final LatLng latLng = new LatLng(Double.parseDouble(obj.getString("latitude")), Double.parseDouble(obj.getString("longitude")));
-
-                                    Marker custom = map.addMarker(new MarkerOptions().title(obj.getString("lastname")).position(
-                                            latLng).icon(BitmapDescriptorFactory.fromResource(R.drawable.marker_member)));
-
-                                    Location starting = new Location("Depart");
-                                    starting.setLatitude(start.latitude);
-                                    starting.setLongitude(start.longitude);
-                                    Location arrival = new Location("Arrivee");
-                                    arrival.setLatitude(Double.parseDouble(obj.getString("latitude")));
-                                    arrival.setLongitude(Double.parseDouble(obj.getString("longitude")));
-                                    float localDistance = getlocalDistance(starting, arrival);
-
-                                    //getlocalDistance(starting, arrival);
-
-                                    if (e_distance.equalsIgnoreCase("500m")) {
-                                        distance_minimale = 500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("1km")) {
-                                        distance_minimale = 1000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("1,5km")) {
-                                        distance_minimale = 1500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("2km")) {
-                                        distance_minimale = 2000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("2,5km")) {
-                                        distance_minimale = 2500.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("3km")) {
-                                        distance_minimale = 3000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("4km")) {
-                                        distance_minimale = 4000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("5km")) {
-                                        distance_minimale = 5000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("6km")) {
-                                        distance_minimale = 6000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("7km")) {
-                                        distance_minimale = 7000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("8km")) {
-                                        distance_minimale = 8000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("9km")) {
-                                        distance_minimale = 9000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("10km")) {
-                                        distance_minimale = 10000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("20km")) {
-                                        distance_minimale = 20000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("30km")) {
-                                        distance_minimale = 30000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("50km")) {
-                                        distance_minimale = 50000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("100km")) {
-                                        distance_minimale = 100000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("200km")) {
-                                        distance_minimale = 200000.0f;
-
-                                    } else if (e_distance.equalsIgnoreCase("Tous les points")) {
-                                        distance_minimale = 2000000000.0f;
-
-                                    }
-                                    // Toast.makeText(MapsActivity.this, "ok :"+localDistance +" Distance"+distance_minimale, Toast.LENGTH_SHORT).show();
-
-
-                                    if (localDistance >= distance_minimale) {
-                                        custom.setVisible(false);
-                                    }
-                                    String dist;
-
-                                    float dista = (float) (Math.round(localDistance * 100.0) / 100.0);
-                                    dist = dista + " M";
-
-                                    if (localDistance > 1000.0f) {
-                                        localDistance = localDistance / 1000.0f;
-                                        dista = (float) (Math.round(localDistance * 100.0) / 100.0);
-
-                                        dist = dista + " KM";
-                                    }
-                                }
-
-
-                            } catch (JSONException e) {
-                                //e.printStackTrace();
-                                Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", Toast.LENGTH_LONG).show();
-                            }
-
-                        }
-
-                        // notifying list adapter about data changes
-                        // so that it renders the list view with updated data
-
-                    }
-                }, new Response.ErrorListener() {
-            @Override
+    public MapsActivity() {
+        this.TAG = KEY_TAG;
+        this.notShowing = false;
+        this.loggedIn = false;
+        this.typeReseau = 1;
+        this.crit = new Criteria();
+        this.UPDATE_INTERVAL = 60000;
+        this.FASTEST_INTERVAL = 5000;
+        this.mMyMarkersArray = new ArrayList();
+    }
+
+    static {
+        ADVICE_TIME_OUT = GamesStatusCodes.STATUS_ACHIEVEMENT_UNLOCK_FAILURE;
+        COLORS = new int[]{C1558R.color.primary_dark, C1558R.color.primary, C1558R.color.primary_light, C1558R.color.accent, C1558R.color.primary_dark_material_light};
+    }
+
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(C1558R.layout.activity_maps);
+        CheckEnableGPS();
+        this.latitude = Double.valueOf(0.0d);
+        this.longitude = Double.valueOf(0.0d);
+        this.displayDistance = (TextView) findViewById(C1558R.id.textDistance);
+        this.displayDuration = (TextView) findViewById(C1558R.id.textDuration);
+        this.frameLayout = (FrameLayout) findViewById(C1558R.id.frameMaps);
+        this.frameLayout.setVisibility(4);
+        this.relativeLayout = (LinearLayout) findViewById(C1558R.id.tgLayout);
+        this.sharedPreferences = getSharedPreferences(Config.SHARED_PREF_NAME, 0);
+        this.connexionCompte = 0;
+        FloatingActionButton fab = (FloatingActionButton) findViewById(C1558R.id.fabMap);
+        fab.setOnClickListener(new C15471());
+        fab.setVisibility(4);
+        ((FloatingActionButton) findViewById(C1558R.id.fabSearch)).setOnClickListener(new C15482());
+        this.mapLayout = (RelativeLayout) findViewById(C1558R.id.maplayout);
+        this.polylines = new ArrayList();
+        this.mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(C1558R.id.map);
+        if (this.mapFragment != null) {
+            this.mapFragment.getMapAsync(this);
+        }
+        new CheckLocations().execute(new String[0]);
+        this.locationManager = (LocationManager) getSystemService("location");
+        this.crit.setAccuracy(1);
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            this.currentLoc = this.locationManager.getLastKnownLocation(this.locationManager.getBestProvider(this.crit, true));
+            ((ToggleButton) findViewById(C1558R.id.tgBtnSimple)).setOnCheckedChangeListener(new C15493());
+            this.sendRoute = (Button) findViewById(C1558R.id.sendRoute);
+            this.sendRoute.setOnClickListener(new C15504());
+            this.sendRoute.setVisibility(4);
+            this.imageBtnRoute = (ImageButton) findViewById(C1558R.id.imageBtnRoute);
+            this.imageBtnRoute.setOnClickListener(new C15515());
+            this.imageBtnRoute.setVisibility(4);
+            this.loggedIn = getSharedPreferences(Config.SHARED_PREF_NAME, 0).getBoolean(Config.LOGGEDIN_SHARED_PREF, false);
+            if (this.loggedIn) {
+                fab.setVisibility(0);
+            }
+            new Handler().postDelayed(new C15526(), (long) ADVICE_TIME_OUT);
+        }
+    }
+
+    public void onBackPressed() {
+    }
+
+    public void onResume() {
+        super.onResume();
+    }
+
+    public void onPause() {
+        super.onPause();
+    }
+
+    public void onLocationChanged(Location currentloc) {
+        currentloc.setAccuracy(TextTrackStyle.DEFAULT_FONT_SCALE);
+        StringBuilder msg = new StringBuilder("latitude : ");
+        msg.append(currentloc.getLatitude());
+        msg.append("; longitude : ");
+        msg.append(currentloc.getLongitude());
+        if (this.marker != null) {
+            this.marker.remove();
+        }
+        LatLng latLng = new LatLng(currentloc.getLatitude(), currentloc.getLongitude());
+        this.latitude = Double.valueOf(currentloc.getLatitude());
+        this.longitude = Double.valueOf(currentloc.getLongitude());
+        this.start = latLng;
+        String phone = getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(KEY_PHONE, "Not Available");
+        this.marker = this.map.addMarker(new MarkerOptions().title("Vous \u00eates ici!").position(latLng).icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.main_marker)));
+        if (this.connexionCompte == 0) {
+            this.map.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0f));
+            this.connexionCompte = 1;
+        }
+        this.marker.showInfoWindow();
+    }
+
+    private void locations() {
+        this.pDialog = new Builder(this).title((CharSequence) "Attendez svp!").content((CharSequence) "Chargement marqueurs...").progress(true, 0).cancelable(false).show();
+        JsonArrayRequest movieReq = new JsonArrayRequest("http://ilink-app.com/app/select/locations.php", new C15537(), new C15548());
+        AppController.getInstance().addToRequestQueue(movieReq, "json_array_req");
+    }
+
+    private void allLocations() {
+        this.pDialog = new Builder(this).title((CharSequence) "Attendez svp!").content((CharSequence) "Chargement marqueurs...").progress(true, 0).cancelable(false).show();
+        JsonArrayRequest movieReq = new JsonArrayRequest("http://ilink-app.com/app/select/locations.php", new C15559(), new ErrorListener() {
             public void onErrorResponse(VolleyError error) {
-                VolleyLog.d(TAG, "Error: " + error.getMessage());
-                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", Toast.LENGTH_LONG).show();
-                hidePDialog();
-
+                VolleyLog.m15d(MapsActivity.this.TAG, "Error: " + error.getMessage());
+                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", 1).show();
+                MapsActivity.this.hidePDialog();
             }
         });
-        // Adding request to request queue
-        AppController.getInstance().addToRequestQueue(movieReq, tag_json_arry);
+        AppController.getInstance().addToRequestQueue(movieReq, "json_array_req");
+    }
 
+    private void searchallLocations(String distance, String montant) {
+        this.pDialog = new Builder(this).title((CharSequence) "Attendez svp!").content((CharSequence) "Chargement des marqueurs...").progress(true, 0).cancelable(false).show();
+        JsonArrayRequest movieReq = new JsonArrayRequest("http://ilink-app.com/app/select/locations.php", new Listener<JSONArray>() {
+            public void onResponse(JSONArray response) {
+                Log.d(MapsActivity.this.TAG, response.toString());
+                MapsActivity.this.hidePDialog();
+                float distance_minimale = 0.0f;
+                for (int i = 0; i < response.length(); i++) {
+                    try {
+                        LatLng latLng;
+                        Marker custom;
+                        Location starting;
+                        Location arrival;
+                        float localDistance;
+                        float dista;
+                        String dist;
+                        JSONObject obj = response.getJSONObject(i);
+                        MapsActivity mapsActivity = MapsActivity.this;
+                        String network = r0.getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(RegisterSimpleActivity.KEY_NETWORK, "Pas disponible");
+                        if (MapsActivity.this.typeReseau == 1) {
+                            if (obj.getString(MapsActivity.KEY_LATITUDE) != null) {
+                                if (obj.getString(RegisterSimpleActivity.KEY_NETWORK).equals(network)) {
+                                    if (obj.getString(RegisterSimpleActivity.KEY_CATEGORY).equals("geolocated")) {
+                                        if (obj.getString("active").equals("oui")) {
+                                            latLng = new LatLng(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)), Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)));
+                                            custom = MapsActivity.this.map.addMarker(new MarkerOptions().title(obj.getString(RegisterSimpleActivity.KEY_LASTNAME)).position(latLng).icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.marker_member)));
+                                            starting = new Location("Depart");
+                                            starting.setLatitude(MapsActivity.this.start.latitude);
+                                            starting.setLongitude(MapsActivity.this.start.longitude);
+                                            arrival = new Location("Arrivee");
+                                            arrival.setLatitude(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)));
+                                            arrival.setLongitude(Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)));
+                                            localDistance = MapsActivity.this.getlocalDistance(starting, arrival);
+                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("500m")) {
+                                                distance_minimale = 500.0f;
+                                            } else {
+                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("1km")) {
+                                                    distance_minimale = 1000.0f;
+                                                } else {
+                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("1,5km")) {
+                                                        distance_minimale = 1500.0f;
+                                                    } else {
+                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("2km")) {
+                                                            distance_minimale = 2000.0f;
+                                                        } else {
+                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("2,5km")) {
+                                                                distance_minimale = 2500.0f;
+                                                            } else {
+                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("3km")) {
+                                                                    distance_minimale = 3000.0f;
+                                                                } else {
+                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("4km")) {
+                                                                        distance_minimale = 4000.0f;
+                                                                    } else {
+                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("5km")) {
+                                                                            distance_minimale = 5000.0f;
+                                                                        } else {
+                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("6km")) {
+                                                                                distance_minimale = 6000.0f;
+                                                                            } else {
+                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("7km")) {
+                                                                                    distance_minimale = 7000.0f;
+                                                                                } else {
+                                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("8km")) {
+                                                                                        distance_minimale = 8000.0f;
+                                                                                    } else {
+                                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("9km")) {
+                                                                                            distance_minimale = 9000.0f;
+                                                                                        } else {
+                                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("10km")) {
+                                                                                                distance_minimale = 10000.0f;
+                                                                                            } else {
+                                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("20km")) {
+                                                                                                    distance_minimale = 20000.0f;
+                                                                                                } else {
+                                                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("30km")) {
+                                                                                                        distance_minimale = 30000.0f;
+                                                                                                    } else {
+                                                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("50km")) {
+                                                                                                            distance_minimale = 50000.0f;
+                                                                                                        } else {
+                                                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("100km")) {
+                                                                                                                distance_minimale = 100000.0f;
+                                                                                                            } else {
+                                                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("200km")) {
+                                                                                                                    distance_minimale = 200000.0f;
+                                                                                                                } else {
+                                                                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("Tous les points")) {
+                                                                                                                        distance_minimale = 2.0E9f;
+                                                                                                                    }
+                                                                                                                }
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            if (localDistance >= distance_minimale) {
+                                                custom.setVisible(false);
+                                            }
+                                            dista = (float) (((double) Math.round(((double) localDistance) * 100.0d)) / 100.0d);
+                                            dist = dista + " M";
+                                            if (localDistance > 1000.0f) {
+                                                dista = (float) (((double) Math.round(((double) (localDistance / 1000.0f)) * 100.0d)) / 100.0d);
+                                                dista + " KM";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (MapsActivity.this.typeReseau == 2) {
+                            if (obj.getString(MapsActivity.KEY_LATITUDE) != null) {
+                                if (obj.getString(RegisterSimpleActivity.KEY_CATEGORY).equals("geolocated")) {
+                                    if (obj.getString("active").equals("oui")) {
+                                        latLng = new LatLng(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)), Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)));
+                                        custom = MapsActivity.this.map.addMarker(new MarkerOptions().title(obj.getString(RegisterSimpleActivity.KEY_LASTNAME)).position(latLng).icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.marker_member)));
+                                        starting = new Location("Depart");
+                                        starting.setLatitude(MapsActivity.this.start.latitude);
+                                        starting.setLongitude(MapsActivity.this.start.longitude);
+                                        arrival = new Location("Arrivee");
+                                        arrival.setLatitude(Double.parseDouble(obj.getString(MapsActivity.KEY_LATITUDE)));
+                                        arrival.setLongitude(Double.parseDouble(obj.getString(MapsActivity.KEY_LONGITUDE)));
+                                        localDistance = MapsActivity.this.getlocalDistance(starting, arrival);
+                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("500m")) {
+                                            distance_minimale = 500.0f;
+                                        } else {
+                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("1km")) {
+                                                distance_minimale = 1000.0f;
+                                            } else {
+                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("1,5km")) {
+                                                    distance_minimale = 1500.0f;
+                                                } else {
+                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("2km")) {
+                                                        distance_minimale = 2000.0f;
+                                                    } else {
+                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("2,5km")) {
+                                                            distance_minimale = 2500.0f;
+                                                        } else {
+                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("3km")) {
+                                                                distance_minimale = 3000.0f;
+                                                            } else {
+                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("4km")) {
+                                                                    distance_minimale = 4000.0f;
+                                                                } else {
+                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("5km")) {
+                                                                        distance_minimale = 5000.0f;
+                                                                    } else {
+                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("6km")) {
+                                                                            distance_minimale = 6000.0f;
+                                                                        } else {
+                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("7km")) {
+                                                                                distance_minimale = 7000.0f;
+                                                                            } else {
+                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("8km")) {
+                                                                                    distance_minimale = 8000.0f;
+                                                                                } else {
+                                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("9km")) {
+                                                                                        distance_minimale = 9000.0f;
+                                                                                    } else {
+                                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("10km")) {
+                                                                                            distance_minimale = 10000.0f;
+                                                                                        } else {
+                                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("20km")) {
+                                                                                                distance_minimale = 20000.0f;
+                                                                                            } else {
+                                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("30km")) {
+                                                                                                    distance_minimale = 30000.0f;
+                                                                                                } else {
+                                                                                                    if (MapsActivity.this.e_distance.equalsIgnoreCase("50km")) {
+                                                                                                        distance_minimale = 50000.0f;
+                                                                                                    } else {
+                                                                                                        if (MapsActivity.this.e_distance.equalsIgnoreCase("100km")) {
+                                                                                                            distance_minimale = 100000.0f;
+                                                                                                        } else {
+                                                                                                            if (MapsActivity.this.e_distance.equalsIgnoreCase("200km")) {
+                                                                                                                distance_minimale = 200000.0f;
+                                                                                                            } else {
+                                                                                                                if (MapsActivity.this.e_distance.equalsIgnoreCase("Tous les points")) {
+                                                                                                                    distance_minimale = 2.0E9f;
+                                                                                                                }
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (localDistance >= distance_minimale) {
+                                            custom.setVisible(false);
+                                        }
+                                        dista = (float) (((double) Math.round(((double) localDistance) * 100.0d)) / 100.0d);
+                                        dist = dista + " M";
+                                        if (localDistance > 1000.0f) {
+                                            dista = (float) (((double) Math.round(((double) (localDistance / 1000.0f)) * 100.0d)) / 100.0d);
+                                            dista + " KM";
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", 1).show();
+                    }
+                }
+            }
+        }, new ErrorListener() {
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.m15d(MapsActivity.this.TAG, "Error: " + error.getMessage());
+                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", 1).show();
+                MapsActivity.this.hidePDialog();
+            }
+        });
+        AppController.getInstance().addToRequestQueue(movieReq, "json_array_req");
     }
 
     private void hidePDialog() {
-        if (pDialog != null) {
-            pDialog.dismiss();
-            pDialog = null;
+        if (this.pDialog != null) {
+            this.pDialog.dismiss();
+            this.pDialog = null;
         }
     }
 
-
-    // Routing
-
-
     public void sendRequest() {
-        if (Util.Operations.isOnline(this)) {
+        if (Operations.isOnline(this)) {
             route();
         } else {
-            Toast.makeText(this, "Pas de connexion internet", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Pas de connexion internet", 0).show();
         }
     }
 
     public void route() {
-        if (start == null || end == null) {
-            Toast.makeText(this, "Votre position et votre destination sont inconnues.", Toast.LENGTH_SHORT).show();
-        } else {
-
-            pDialog = new MaterialDialog.Builder(MapsActivity.this)
-                    .title("Attendez svp!")
-                    .content("Nous cherchons votre chemin...")
-                    .progress(true, 0)
-                    .cancelable(false)
-                    .show();
-
-
-            Routing routing = new Routing.Builder()
-                    .travelMode(AbstractRouting.TravelMode.DRIVING)
-                    .withListener(this)
-                    .alternativeRoutes(false)
-                    .waypoints(start, end)
-                    .build();
-            routing.execute();
-            Location arrival = new Location("Destination");
-            arrival.setLatitude(end.latitude);
-            arrival.setLongitude(end.longitude);
-            Location starting = new Location("Depart");
-            starting.setLatitude(start.latitude);
-            starting.setLongitude(start.longitude);
-            toastDistance(starting, arrival);
-            // Getting URL to the Google Directions API
-            String url = getDirectionsUrl(start, end);
-            timeToDirection(url);
+        if (this.start == null || this.end == null) {
+            Toast.makeText(this, "Votre position et votre destination sont inconnues.", 0).show();
+            return;
         }
+        this.pDialog = new Builder(this).title((CharSequence) "Attendez svp!").content((CharSequence) "Nous cherchons votre chemin...").progress(true, 0).cancelable(false).show();
+        new Routing.Builder().travelMode(TravelMode.DRIVING).withListener(this).alternativeRoutes(false).waypoints(this.start, this.end).build().execute(new Void[0]);
+        Location arrival = new Location("Destination");
+        arrival.setLatitude(this.end.latitude);
+        arrival.setLongitude(this.end.longitude);
+        Location starting = new Location("Depart");
+        starting.setLatitude(this.start.latitude);
+        starting.setLongitude(this.start.longitude);
+        toastDistance(starting, arrival);
+        timeToDirection(getDirectionsUrl(this.start, this.end));
     }
 
-
-    @Override
     public void onRoutingFailure(RouteException e) {
-        // The Routing request failed
-        String test;
         hidePDialog();
         if (e != null) {
-            Toast.makeText(this, "Erreur", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Erreur", 1).show();
         } else {
-            Toast.makeText(this, "Une erreur est survenue, Essayez encore", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Une erreur est survenue, Essayez encore", 0).show();
         }
     }
 
-    @Override
     public void onRoutingStart() {
-        // The Routing Request starts
     }
 
-    @Override
     public void onRoutingSuccess(ArrayList<Route> route, int shortestRouteIndex) {
         hidePDialog();
-        CameraUpdate center = CameraUpdateFactory.newLatLng(start);
-        CameraUpdate zoom = CameraUpdateFactory.zoomTo(16);
-
-        map.moveCamera(center);
-
-
-        if (polylines.size() > 0) {
-            for (Polyline poly : polylines) {
-                poly.remove();
+        CameraUpdate center = CameraUpdateFactory.newLatLng(this.start);
+        CameraUpdate zoom = CameraUpdateFactory.zoomTo(16.0f);
+        this.map.moveCamera(center);
+        if (this.polylines.size() > 0) {
+            Iterator it = this.polylines.iterator();
+            while (it.hasNext()) {
+                ((Polyline) it.next()).remove();
             }
         }
-
-        polylines = new ArrayList<>();
-        //add route(s) to the map.
-        /*for (int i = 0; i < route.size(); i++) {
-
-            //In case of more than 5 alternative routes
-            int colorIndex = i % COLORS.length;
-
-            PolylineOptions polyOptions = new PolylineOptions();
-            polyOptions.color(getResources().getColor(COLORS[colorIndex]));
-            polyOptions.width(10 + i * 1);
-            polyOptions.addAll(route.get(i).getPoints());
-            Polyline polyline = map.addPolyline(polyOptions);
-            polylines.add(polyline);
-
-            //Toast.makeText(getApplicationContext(),"Route "+ (i+1) +": distance - "+ route.get(i).getDistanceValue()+": duration - "+ route.get(i).getDurationValue(),Toast.LENGTH_SHORT).show();
-            //Snackbar.make(mapLayout, "Route "+ (i+1) +": distance - "+ route.get(i).getDistanceValue()+": duration - "+ route.get(i).getDurationValue(), Snackbar.LENGTH_LONG)
-            //.setAction("Action", null).show();
-        }*/
+        this.polylines = new ArrayList();
         PolylineOptions polyOptions = new PolylineOptions();
         polyOptions.color(getResources().getColor(COLORS[1]));
-        polyOptions.width(10 + 1 * 1);
-        polyOptions.addAll(route.get(0).getPoints());
-        Polyline polyline = map.addPolyline(polyOptions);
-        polylines.add(polyline);
-
-        // Start marker
+        polyOptions.width(11.0f);
+        polyOptions.addAll(((Route) route.get(0)).getPoints());
+        this.polylines.add(this.map.addPolyline(polyOptions));
         MarkerOptions options = new MarkerOptions();
-        options.position(start);
-        options.icon(BitmapDescriptorFactory.fromResource(R.drawable.start_blue));
-        map.addMarker(options);
-
-        // End marker
+        options.position(this.start);
+        options.icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.start_blue));
+        this.map.addMarker(options);
         options = new MarkerOptions();
-        options.position(end);
-        options.icon(BitmapDescriptorFactory.fromResource(R.drawable.end_green));
-        map.addMarker(options);
-
+        options.position(this.end);
+        options.icon(BitmapDescriptorFactory.fromResource(C1558R.drawable.end_green));
+        this.map.addMarker(options);
     }
 
-    @Override
     public void onRoutingCancelled() {
-        Log.i(LOG_TAG, "La recherche du chemin a été annulée.");
+        Log.i(LOG_TAG, "La recherche du chemin a \u00e9t\u00e9 annul\u00e9e.");
     }
 
-
-    @Override
-    public boolean onMarkerClick(final Marker marker) {
+    public boolean onMarkerClick(Marker marker) {
         Log.i("MapsActivity", "onMarkerClick");
-
         String title = marker.getTitle();
-
-
-        if (title.equals("Vous êtes ici!") || title.equals("Gabon")) {
-            sendRoute.setVisibility(View.INVISIBLE);
-            imageBtnRoute.setVisibility(View.INVISIBLE);
-
+        if (title.equals("Vous \u00eates ici!") || title.equals("Gabon")) {
+            this.sendRoute.setVisibility(4);
+            this.imageBtnRoute.setVisibility(4);
         } else {
-
-
-            end = marker.getPosition();
-            sendRoute.setVisibility(View.VISIBLE);
-            imageBtnRoute.setVisibility(View.VISIBLE);
-
+            this.end = marker.getPosition();
+            this.sendRoute.setVisibility(0);
+            this.imageBtnRoute.setVisibility(0);
         }
-
         return false;
-
     }
 
-    //Logout function
     private void logout() {
-        //Creating an alert dialog to confirm logout
         AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
-        alertDialogBuilder.setMessage("Etes vous sur de vouloir vous deconnecter?");
-        alertDialogBuilder.setPositiveButton("Oui",
-                new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface arg0, int arg1) {
-
-                        //Getting out sharedpreferences
-                        SharedPreferences preferences = getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-                        //Getting editor
-                        SharedPreferences.Editor editor = preferences.edit();
-
-                        //Puting the value false for loggedin
-                        editor.putBoolean(Config.LOGGEDIN_SHARED_PREF, false);
-
-                        //Putting blank value to email
-                        editor.putString(Config.EMAIL_SHARED_PREF, "");
-
-                        //Puting the value false for checkboxadvice
-                        editor.putBoolean(Config.CHECK_BOX_ADVICE_PREF, false);
-
-                        //Saving the sharedpreferences
-                        editor.commit();
-
-                        //Starting login activity
-                        Intent intent = new Intent(MapsActivity.this, MainActivity.class);
-                        startActivity(intent);
-                        finish();
-                    }
-                });
-
-        alertDialogBuilder.setNegativeButton("Non",
-                new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface arg0, int arg1) {
-
-                    }
-                });
-
-        //Showing the alert dialog
-        AlertDialog alertDialog = alertDialogBuilder.create();
-        alertDialog.show();
-
+        alertDialogBuilder.setMessage((CharSequence) "Etes vous sur de vouloir vous deconnecter?");
+        alertDialogBuilder.setPositiveButton((CharSequence) "Oui", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface arg0, int arg1) {
+                Editor editor = MapsActivity.this.getSharedPreferences(Config.SHARED_PREF_NAME, 0).edit();
+                editor.putBoolean(Config.LOGGEDIN_SHARED_PREF, false);
+                editor.putString(MapsActivity.KEY_EMAIL, BuildConfig.VERSION_NAME);
+                editor.putBoolean(Config.CHECK_BOX_ADVICE_PREF, false);
+                editor.commit();
+                MapsActivity.this.startActivity(new Intent(MapsActivity.this, MainActivity.class));
+                MapsActivity.this.finish();
+            }
+        });
+        alertDialogBuilder.setNegativeButton((CharSequence) "Non", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface arg0, int arg1) {
+            }
+        });
+        alertDialogBuilder.create().show();
     }
-
 
     private void toastDistance(Location starting, Location arrival) {
-
-
-        frameLayout.setVisibility(View.VISIBLE);
-
+        this.frameLayout.setVisibility(0);
         if (starting != null) {
-            //float distance = currentLoc.distanceTo(pointLocation);
             float distance = starting.distanceTo(arrival);
-
-            String dist;
-
-            float dista = (float) (Math.round(distance * 100.0) / 100.0);
-            dist = dista + " M";
-
+            String dist = ((float) (((double) Math.round(((double) distance) * 100.0d)) / 100.0d)) + " M";
             if (distance > 1000.0f) {
-                distance = distance / 1000.0f;
-                dista = (float) (Math.round(distance * 100.0) / 100.0);
-
-                dist = dista + " KM";
+                dist = ((float) (((double) Math.round(((double) (distance / 1000.0f)) * 100.0d)) / 100.0d)) + " KM";
             }
-
-            displayDistance.setText("Le point est situé à : " + dist);
-            //Toast.makeText(MapsActivity.this, ""+dist, Toast.LENGTH_SHORT).show();
-
-
-        } else {
-
-            Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...",
-                    Toast.LENGTH_LONG).show();
+            this.displayDistance.setText("Le point est situ\u00e9 \u00e0 : " + dist);
             return;
-
         }
-
+        Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...", 1).show();
     }
 
     private float getlocalDistance(Location start, Location arrive) {
-
-
-        frameLayout.setVisibility(View.INVISIBLE);
-
+        this.frameLayout.setVisibility(4);
         if (start != null) {
-
-            //float distance = currentLoc.distanceTo(pointLocation);
-
-            float distance = start.distanceTo(arrive);
-
-           /* String dist;
-
-            float dista = (float) (Math.round(distance * 100.0) / 100.0);
-            dist=dista+" M";
-
-            if(distance>1000.0f)
-            {
-                distance=distance/1000.0f;
-                dista = (float) (Math.round(distance * 100.0) / 100.0);
-
-                dist=dista+" KM";
-            }
-*/
-
-            //displayDistance.setText("Le point est situé à : " +dist);
-            //Toast.makeText(MapsActivity.this, ""+distance, Toast.LENGTH_SHORT).show();
-            return distance;
-
-
-        } else {
-
-            Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...",
-                    Toast.LENGTH_LONG).show();
-
-            return 0;
-
+            return start.distanceTo(arrive);
         }
-
-
+        Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...", 1).show();
+        return 0.0f;
     }
 
     private String getDistance(Location starting, Location arrival) {
-
-
-        frameLayout.setVisibility(View.VISIBLE);
-
+        this.frameLayout.setVisibility(0);
         if (starting != null) {
-            //float distance = currentLoc.distanceTo(pointLocation);
-            float distance = starting.distanceTo(arrival);
-
             String dist;
-
+            float distance = starting.distanceTo(arrival);
             if (distance > 1000.0f) {
-                distance = distance / 1000.0f;
-                float dista = (float) (Math.round(distance * 100.0) / 100.0);
-
-                dist = dista + " KM";
+                dist = ((float) (((double) Math.round(((double) (distance / 1000.0f)) * 100.0d)) / 100.0d)) + " KM";
             } else {
-
-                float dista = (float) (Math.round(distance * 100.0) / 100.0);
-                dist = dista + " M";
-
+                dist = ((float) (((double) Math.round(((double) distance) * 100.0d)) / 100.0d)) + " M";
             }
-
-            displayDistance.setText("Le point est situé à : " + dist);
-
+            this.displayDistance.setText("Le point est situ\u00e9 \u00e0 : " + dist);
             return dist;
-
-
-        } else {
-
-            Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...",
-                    Toast.LENGTH_LONG).show();
-            return null;
-
         }
-
+        Toast.makeText(this, "Nous ne vous trouvons pas. Annulation...", 1).show();
+        return null;
     }
 
-    private void updateLocation(final Double latit, final Double longit, final String phoneT) {
-        SharedPreferences sharedPreferences = this.getSharedPreferences(Config.SHARED_PREF_NAME, Context.MODE_PRIVATE);
-        final String phone = sharedPreferences.getString(Config.PHONE_SHARED_PREF, "Not Available");
-
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, REGISTER_URL,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-
-
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", Toast.LENGTH_LONG).show();
-                    }
-                }) {
-            @Override
-            protected Map<String, String> getParams() {
-                Map<String, String> params = new HashMap<String, String>();
-
-                params.put(KEY_PHONE, phoneT);
-                params.put(KEY_LATITUDE, String.valueOf(latit));
-                params.put(KEY_LONGITUDE, String.valueOf(longit));
-                params.put(KEY_TAG, "updateLocation");
-                return params;
+    private void updateLocation(Double latit, Double longit, String phoneT) {
+        String phone = getSharedPreferences(Config.SHARED_PREF_NAME, 0).getString(KEY_PHONE, "Not Available");
+        Volley.newRequestQueue(this).add(new AnonymousClass17(1, REGISTER_URL, new Listener<String>() {
+            public void onResponse(String response) {
             }
-
-
-        };
-
-        RequestQueue requestQueue = Volley.newRequestQueue(this);
-        requestQueue.add(stringRequest);
+        }, new ErrorListener() {
+            public void onErrorResponse(VolleyError error) {
+                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible", 1).show();
+            }
+        }, phoneT, latit, longit));
     }
 
-    @Override
     public void onMapClick(LatLng latLng) {
-        sendRoute.setVisibility(View.INVISIBLE);
-        imageBtnRoute.setVisibility(View.INVISIBLE);
+        this.sendRoute.setVisibility(4);
+        this.imageBtnRoute.setVisibility(4);
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
-    @Override
     public void onMapReady(GoogleMap googleMap) {
-
-        map = googleMap;
-        loadMap(map);
-
+        this.map = googleMap;
+        loadMap(this.map);
         double code = Math.random();
-
-        map.setOnMarkerClickListener(this);
-
-        map.getUiSettings().setZoomControlsEnabled(true);
-        map.getUiSettings().setMapToolbarEnabled(false);
-        map.setOnMapClickListener(this);
-
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
+        this.map.setOnMarkerClickListener(this);
+        this.map.getUiSettings().setZoomControlsEnabled(true);
+        this.map.getUiSettings().setMapToolbarEnabled(false);
+        this.map.setOnMapClickListener(this);
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            this.map.setMyLocationEnabled(true);
+            this.map.getUiSettings().setMyLocationButtonEnabled(true);
+            this.map.getMyLocation();
         }
-        map.setMyLocationEnabled(true);
-        map.getUiSettings().setMyLocationButtonEnabled(true);
-        map.getMyLocation();
-
-        //mapLocationListener.onLocationChanged(currentloc);
-
-        /*
-        final LatLng latLng = new LatLng(latitude, longitude);
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        crit.setAccuracy(Criteria.ACCURACY_FINE);
-        Location location = locationManager.getLastKnownLocation(locationManager
-                .getBestProvider(crit, true));
-
-        final double lati = location.getLatitude();
-        final double longi = location.getLongitude();
-
-
-        LatLng latlng=
-                new LatLng(lati, longi);
-        CameraUpdate cu=CameraUpdateFactory.newLatLngZoom(latlng, 15);
-
-
-        marker = map.addMarker(new MarkerOptions().title("Vous êtes ici!").position(
-                latlng).icon(BitmapDescriptorFactory.fromResource(R.drawable.main_marker)));
-
-
-
-        map.animateCamera(cu);
-
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15));
-
-
-        start = latLng;
-        marker.showInfoWindow();
-
-*/
-
-
     }
 
     protected void loadMap(GoogleMap googleMap) {
-        map = googleMap;
-        if (map != null) {
-            // Map is ready
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                return;
-            } else {
-                map.setMyLocationEnabled(true);
-            }
-
-
-            // Now that map has loaded, let's get our location!
-            mGoogleApiClient = new GoogleApiClient.Builder(this)
-                    .addApi(LocationServices.API)
-                    .addConnectionCallbacks(this)
-                    .addOnConnectionFailedListener(this).build();
-
+        this.map = googleMap;
+        if (this.map == null) {
+            Toast.makeText(this, "Error - Map was null!!", 0).show();
+        } else if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            this.map.setMyLocationEnabled(true);
+            this.mGoogleApiClient = new GoogleApiClient.Builder(this).addApi(LocationServices.API).addConnectionCallbacks(this).addOnConnectionFailedListener(this).build();
             connectClient();
-        } else {
-            Toast.makeText(this, "Error - Map was null!!", Toast.LENGTH_SHORT).show();
         }
     }
 
     protected void connectClient() {
-        // Connect the client.
-        if (isGooglePlayServicesAvailable() && mGoogleApiClient != null) {
-            mGoogleApiClient.connect();
+        if (isGooglePlayServicesAvailable() && this.mGoogleApiClient != null) {
+            this.mGoogleApiClient.connect();
         }
     }
 
-    /*
-     * Called when the Activity becomes visible.
-    */
-    @Override
     protected void onStart() {
         super.onStart();
         connectClient();
     }
 
-    /*
-	 * Called when the Activity is no longer visible.
-	 */
-    @Override
     protected void onStop() {
-        // Disconnecting the client invalidates it.
-        if (mGoogleApiClient != null) {
-            mGoogleApiClient.disconnect();
+        if (this.mGoogleApiClient != null) {
+            this.mGoogleApiClient.disconnect();
         }
         super.onStop();
     }
 
-    /*
-     * Handle results returned to the FragmentActivity by Google Play services
-     */
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        // Decide what to do based on the original request code
         switch (requestCode) {
-
-            case CONNECTION_FAILURE_RESOLUTION_REQUEST:
-			/*
-			 * If the result code is Activity.RESULT_OK, try to connect again
-			 */
+            case CONNECTION_FAILURE_RESOLUTION_REQUEST /*9000*/:
                 switch (resultCode) {
-                    case Activity.RESULT_OK:
-                        mGoogleApiClient.connect();
-                        break;
+                    case MessageApi.UNKNOWN_REQUEST_ID /*-1*/:
+                        this.mGoogleApiClient.connect();
+                    default:
                 }
-
+            default:
         }
     }
 
     private boolean isGooglePlayServicesAvailable() {
-        // Check that Google Play services is available
         int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
-        // If Google Play services is available
-        if (ConnectionResult.SUCCESS == resultCode) {
-            // In debug mode, log the status
+        if (resultCode == 0) {
             Log.d("Location Updates", "Google Play services is available.");
             return true;
-        } else {
-            // Get the error dialog from Google Play services
-            Dialog errorDialog = GooglePlayServicesUtil.getErrorDialog(resultCode, this,
-                    CONNECTION_FAILURE_RESOLUTION_REQUEST);
-
-            // If Google Play services can provide an error dialog
-            if (errorDialog != null) {
-                // Create a new DialogFragment for the error dialog
-                ErrorDialogFragment errorFragment = new ErrorDialogFragment();
-                errorFragment.setDialog(errorDialog);
-                errorFragment.show(getSupportFragmentManager(), "Location Updates");
-            }
-
-            return false;
         }
+        Dialog errorDialog = GooglePlayServicesUtil.getErrorDialog(resultCode, this, CONNECTION_FAILURE_RESOLUTION_REQUEST);
+        if (errorDialog != null) {
+            ErrorDialogFragment errorFragment = new ErrorDialogFragment();
+            errorFragment.setDialog(errorDialog);
+            errorFragment.show(getSupportFragmentManager(), "Location Updates");
+        }
+        return false;
     }
 
-    /*
-     * Called by Location Services when the request to connect the client
-     * finishes successfully. At this point, you can request the current
-     * location or start periodic updates
-     */
-    @Override
     public void onConnected(Bundle dataBundle) {
-        // Display the connection status
-        Location location;
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") != 0 && ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") != 0) {
             return;
-        } else {
-            location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         }
-
-        if (location != null) {
-            //Toast.makeText(this, "GPS location was found!", Toast.LENGTH_SHORT).show();
-            //LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
-            //CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(latLng, 17);
-            //map.animateCamera(cameraUpdate);
+        if (LocationServices.FusedLocationApi.getLastLocation(this.mGoogleApiClient) != null) {
             startLocationUpdates();
         } else {
-            Toast.makeText(this, "Nous ne pouvons vous localiser, activez le GPS!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Nous ne pouvons vous localiser, activez le GPS!", 0).show();
         }
     }
 
     protected void startLocationUpdates() {
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
-        mLocationRequest.setInterval(UPDATE_INTERVAL);
-        mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        } else {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
-                    mLocationRequest, this);
+        this.mLocationRequest = new LocationRequest();
+        this.mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+        this.mLocationRequest.setInterval(this.UPDATE_INTERVAL);
+        this.mLocationRequest.setFastestInterval(this.FASTEST_INTERVAL);
+        if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_FINE_LOCATION") == 0 || ContextCompat.checkSelfPermission(this, "android.permission.ACCESS_COARSE_LOCATION") == 0) {
+            LocationServices.FusedLocationApi.requestLocationUpdates(this.mGoogleApiClient, this.mLocationRequest, (LocationListener) this);
         }
-
     }
-    /*
-     * Called by Location Services if the connection to the location client
-     * drops because of an error.
-     */
-    @Override
+
     public void onConnectionSuspended(int i) {
-        if (i == CAUSE_SERVICE_DISCONNECTED) {
-            Toast.makeText(this, "Disconnected. Please re-connect.", Toast.LENGTH_SHORT).show();
-        } else if (i == CAUSE_NETWORK_LOST) {
-            Toast.makeText(this, "Network lost. Please re-connect.", Toast.LENGTH_SHORT).show();
+        if (i == 1) {
+            Toast.makeText(this, "Disconnected. Please re-connect.", 0).show();
+        } else if (i == 2) {
+            Toast.makeText(this, "Network lost. Please re-connect.", 0).show();
         }
     }
 
-    /*
-     * Called by Location Services if the attempt to Location Services fails.
-     */
-    @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
-		/*
-		 * Google Play services can resolve some errors it detects. If the error
-		 * has a resolution, try sending an Intent to start a Google Play
-		 * services activity that can resolve error.
-		 */
         if (connectionResult.hasResolution()) {
             try {
-                // Start an Activity that tries to resolve the error
-                connectionResult.startResolutionForResult(this,
-                        CONNECTION_FAILURE_RESOLUTION_REQUEST);
-				/*
-				 * Thrown if Google Play services canceled the original
-				 * PendingIntent
-				 */
-            } catch (IntentSender.SendIntentException e) {
-                // Log the error
+                connectionResult.startResolutionForResult(this, CONNECTION_FAILURE_RESOLUTION_REQUEST);
+                return;
+            } catch (SendIntentException e) {
                 e.printStackTrace();
+                return;
             }
-        } else {
-            Toast.makeText(getApplicationContext(),
-                    "Sorry. Location services not available to you", Toast.LENGTH_LONG).show();
         }
+        Toast.makeText(getApplicationContext(), "Sorry. Location services not available to you", 1).show();
     }
 
-    // Define a DialogFragment that displays the error dialog
-    public static class ErrorDialogFragment extends DialogFragment {
-
-        // Global field to contain the error dialog
-        private Dialog mDialog;
-
-        // Default constructor. Sets the dialog field to null
-        public ErrorDialogFragment() {
-            super();
-            mDialog = null;
-        }
-
-        // Set the dialog to display
-        public void setDialog(Dialog dialog) {
-            mDialog = dialog;
-        }
-
-        // Return a Dialog to the DialogFragment.
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            return mDialog;
-        }
+    private String getDirectionsUrl(LatLng origin, LatLng dest) {
+        String str_origin = "origin=" + origin.latitude + "," + origin.longitude;
+        return "https://maps.googleapis.com/maps/api/directions/" + "json" + "?" + (str_origin + "&" + ("destination=" + dest.latitude + "," + dest.longitude) + "&" + "sensor=false");
     }
-
-
-
-// Time to destination
-
-    private String getDirectionsUrl(LatLng origin, LatLng dest){
-
-        // Origin of route
-        String str_origin = "origin="+origin.latitude+","+origin.longitude;
-
-        // Destination of route
-        String str_dest = "destination="+dest.latitude+","+dest.longitude;
-
-        // Sensor enabled
-        String sensor = "sensor=false";
-
-        // Building the parameters to the web service
-        String parameters = str_origin+"&"+str_dest+"&"+sensor;
-
-        // Output format
-        String output = "json";
-
-        // Building the url to the web service
-        String url = "https://maps.googleapis.com/maps/api/directions/"+output+"?"+parameters;
-
-        return url;
-    }
-
-
-
 
     private void timeToDirection(String url) {
-        String tag_json_arry = "json_array_req";
-
-        //String url = "http://ilink-app.com/app/select/locations.php";
-        //String url = "http://ilink-app.com/app/select/locations.php";
-        // Creating volley request obj
-        JsonObjectRequest movieReq = new JsonObjectRequest(Request.Method.GET,url,null,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        Log.d(TAG, response.toString());
-                        hidePDialog();
-
-
-                        JSONArray jRoutes = null;
-                        JSONArray jLegs = null;
-                        JSONArray jSteps = null;
-                        JSONObject jDistance = null;
-                        JSONObject jDuration = null;
-
-                        // Parsing json
-                        for (int i = 0; i < 1; i++) {
-                            try {
-                                //JSONArray obj = response.getJSONArray("routes");
-                                //obj.get("time");
-                                jRoutes = response.getJSONArray("routes");
-
-                                for (int j=0; j <1; j++) {
-                                    jLegs = ( (JSONObject)jRoutes.get(i)).getJSONArray("legs");
-
-                                    for(int k=0;k<1;k++) {
-                                        jDuration = ((JSONObject) jLegs.get(j)).getJSONObject("duration");
-                                        //Toast.makeText(MapsActivity.this, jDuration.toString(), Toast.LENGTH_LONG).show();
-                                        displayDuration.setText("Vous y serez en "+jDuration.getString("text"));
-
-                                    }
-
-                                }
-
-
-                            } catch (JSONException e) {
-                                //e.printStackTrace();
-                                Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", Toast.LENGTH_LONG).show();
+        JsonObjectRequest movieReq = new JsonObjectRequest(0, url, null, new Listener<JSONObject>() {
+            public void onResponse(JSONObject response) {
+                Log.d(MapsActivity.this.TAG, response.toString());
+                MapsActivity.this.hidePDialog();
+                for (int i = 0; i < 1; i++) {
+                    try {
+                        JSONArray jRoutes = response.getJSONArray("routes");
+                        for (int j = 0; j < 1; j++) {
+                            JSONArray jLegs = ((JSONObject) jRoutes.get(i)).getJSONArray("legs");
+                            for (int k = 0; k < 1; k++) {
+                                MapsActivity.this.displayDuration.setText("Vous y serez en " + ((JSONObject) jLegs.get(j)).getJSONObject("duration").getString("text"));
                             }
-
                         }
-
-                        // notifying list adapter about data changes
-                        // so that it renders the list view with updated data
-
+                    } catch (JSONException e) {
+                        Toast.makeText(MapsActivity.this, "Impossible de generer les marqueurs", 1).show();
                     }
-                }, new Response.ErrorListener() {
-            @Override
+                }
+            }
+        }, new ErrorListener() {
             public void onErrorResponse(VolleyError error) {
-                VolleyLog.d(TAG, "Error: " + error.getMessage());
-                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible"+error.toString(), Toast.LENGTH_LONG).show();
-
-
+                VolleyLog.m15d(MapsActivity.this.TAG, "Error: " + error.getMessage());
+                Toast.makeText(MapsActivity.this, "Connexion au serveur impossible" + error.toString(), 1).show();
             }
         });
-        // Adding request to request queue
-        AppController.getInstance().addToRequestQueue(movieReq, tag_json_arry);
-
+        AppController.getInstance().addToRequestQueue(movieReq, "json_array_req");
     }
 
-    //Advice function
-    private void advice(){
-        final String[] values = new String[] {"Ne plus afficher ce message?"};
-
-        //Creating an alert dialog to confirm logout
+    private void advice() {
+        CharSequence[] values = new String[]{"Ne plus afficher ce message?"};
         AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
-        // Get the layout inflater
-        LayoutInflater inflater = getLayoutInflater();
-
-        //alertDialogBuilder.setMessage("Etes vous sur de vouloir vous deconnecter?");
-        alertDialogBuilder
-
-
-
-
-
-                .setView(inflater.inflate(R.layout.dialog_advice, null))
-                .setMultiChoiceItems(values, null,
-                        new DialogInterface.OnMultiChoiceClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which,
-                                                boolean isChecked) {
-
-                                checked = isChecked;
-                            }
-                        })
-
-
-                .setPositiveButton("Ok",
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface arg0, int arg1) {
-
-
-                                if (checked == true) {
-                                    //Toast.makeText(getActivity().getApplicationContext(), "", Toast.LENGTH_SHORT).show();
-
-                                    //Creating editor to store values to shared preferences
-                                    SharedPreferences.Editor editor = sharedPreferences.edit();
-
-                                    //Adding values to editor
-                                    editor.putBoolean(Config.CHECK_BOX_ADVICE_PREF, true);
-
-                                    //Saving values to editor
-                                    editor.commit();
-                                }
-
-
-                            }
-                        });
-
-        /*alertDialogBuilder.setNegativeButton("Non",
-                new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface arg0, int arg1) {
-
-                    }
-                });*/
-
-        //Showing the alert dialog
+        alertDialogBuilder.setView(getLayoutInflater().inflate(C1558R.layout.dialog_advice, null)).setMultiChoiceItems(values, null, new OnMultiChoiceClickListener() {
+            public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                MapsActivity.this.checked = isChecked;
+            }
+        }).setPositiveButton((CharSequence) "Ok", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface arg0, int arg1) {
+                if (MapsActivity.this.checked) {
+                    Editor editor = MapsActivity.this.sharedPreferences.edit();
+                    editor.putBoolean(Config.CHECK_BOX_ADVICE_PREF, true);
+                    editor.commit();
+                }
+            }
+        });
         AlertDialog alertDialog = alertDialogBuilder.create();
-        //In onresume fetching value from sharedpreference
-
-        //Fetching the boolean value form sharedpreferences
-        notShowing = sharedPreferences.getBoolean(Config.CHECK_BOX_ADVICE_PREF, false);
-
-        //If we will get true
-        if(notShowing==false){
-            //We will start the Profile Activity
+        this.notShowing = this.sharedPreferences.getBoolean(Config.CHECK_BOX_ADVICE_PREF, false);
+        if (!this.notShowing) {
             alertDialog.setCancelable(false);
             alertDialog.show();
-        } else {
-            //Toast.makeText(getActivity().getApplicationContext(),"Positif",Toast.LENGTH_SHORT).show();
-
         }
-
-
-
-
     }
 
-    private void CheckEnableGPS(){
-
-
-        LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+    private void CheckEnableGPS() {
+        LocationManager lm = (LocationManager) getSystemService("location");
         boolean gps_enabled = false;
         boolean network_enabled = false;
-
         try {
-            gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
-        } catch(Exception ignored) {}
-
+            gps_enabled = lm.isProviderEnabled("gps");
+        } catch (Exception e) {
+        }
         try {
-            network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-        } catch(Exception ignored) {}
-
-        if(!gps_enabled && !network_enabled) {
-            // notify user
+            network_enabled = lm.isProviderEnabled(RegisterSimpleActivity.KEY_NETWORK);
+        } catch (Exception e2) {
+        }
+        if (!gps_enabled && !network_enabled) {
             AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-            dialog.setMessage("Vos options de localisation semblent ne pas être activée. Le GPS et la localisation par le réseau (Wifi ou réseau mobile) doivent être tous les deux activés. Souhaitez vous le faire et profiter pleinement des fonctions de Nkala?");
-            dialog.setPositiveButton("Oui", new DialogInterface.OnClickListener() {
-                @Override
+            dialog.setMessage((CharSequence) "Vos options de localisation semblent ne pas \u00eatre activ\u00e9e. Le GPS et la localisation par le r\u00e9seau (Wifi ou r\u00e9seau mobile) doivent \u00eatre tous les deux activ\u00e9s. Souhaitez vous le faire et profiter pleinement des fonctions de Nkala?");
+            dialog.setPositiveButton((CharSequence) "Oui", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-
-                    Intent myIntent = new Intent( Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                    startActivity(myIntent);
+                    MapsActivity.this.startActivity(new Intent("android.settings.LOCATION_SOURCE_SETTINGS"));
                 }
             });
-            dialog.setNegativeButton("Annuler", new DialogInterface.OnClickListener() {
-                @Override
+            dialog.setNegativeButton((CharSequence) "Annuler", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-
                 }
             });
             dialog.show();
         }
-
     }
-
 }
