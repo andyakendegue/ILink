@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.support.v4.app.NotificationCompat.Builder;
 import android.util.Log;
 import com.google.android.gms.drive.DriveStatusCodes;
-import com.ilink.C1558R;
 import com.ilink.HelpActivity;
 
 public class ProximityIntentReceiver extends BroadcastReceiver {

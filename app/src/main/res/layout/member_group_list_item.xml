@@ -1,46 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:padding="16dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Nom"
-        android:id="@+id/textMemberGroupName"
-        android:textStyle="bold"
-        android:textSize="20sp"
-        android:layout_alignParentRight="false" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Solde"
-        android:id="@+id/textMemberGroupAmount"
-        android:textStyle="bold"
-        android:textSize="20sp"
-        android:layout_alignParentRight="false"
-        android:layout_alignRight="@+id/textMemberGroupAdress"
-        android:textColor="#FF0004" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Adresse"
-        android:id="@+id/textMemberGroupAdress"
-        android:textSize="20sp"
-        android:layout_alignParentLeft="true"
-        android:layout_marginTop="20dp"
-        android:layout_below="@+id/textMemberGroupName" />
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Adresse"
-        android:id="@+id/textMemberGroupPhone"
-        android:textSize="18sp"
-        android:layout_alignParentLeft="true"
-        android:layout_marginTop="20dp"
-        android:layout_below="@+id/textMemberGroupAdress" />
-
-
+<RelativeLayout android:padding="16dp" android:layout_width="-1" android:layout_height="-2">
+    <TextView android:textSize="20sp" android:textStyle="1" android:id="@id/textMemberGroupName" android:layout_width="-2" android:layout_height="-2" android:text="Nom" android:layout_alignParentRight="false" />
+    <TextView android:textSize="20sp" android:textStyle="1" android:textColor="#ff0004" android:id="@id/textMemberGroupAmount" android:layout_width="-2" android:layout_height="-2" android:text="Solde" android:layout_alignRight="@id/textMemberGroupAdress" android:layout_alignParentRight="false" />
+    <TextView android:textSize="20sp" android:id="@id/textMemberGroupAdress" android:layout_width="-1" android:layout_height="-2" android:layout_marginTop="20dp" android:text="Adresse" android:layout_below="@id/textMemberGroupName" android:layout_alignParentLeft="true" />
+    <TextView android:textSize="18sp" android:id="@id/textMemberGroupPhone" android:layout_width="-1" android:layout_height="-2" android:layout_marginTop="20dp" android:text="Adresse" android:layout_below="@id/textMemberGroupAdress" android:layout_alignParentLeft="true" />
 </RelativeLayout>

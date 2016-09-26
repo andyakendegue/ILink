@@ -6,6 +6,6 @@ import android.support.v7.app.AppCompatActivity;
 public class AccountActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView((int) C1558R.layout.activity_account);
+        setContentView((int) R.layout.activity_account);
     }
 }
